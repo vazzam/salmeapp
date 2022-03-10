@@ -134,7 +134,7 @@ gpc = [
 ]
 
 municipios = pd.read_csv('./mx.csv')
-input_pdf_name = 'HC_SALME_python.pdf'
+input_pdf_name = './HC_SALME_python.pdf'
 #cie = CIECodes()
 renglon = '\n'
 
@@ -1048,7 +1048,8 @@ if gen_pdf:
     fillpdfs.write_fillable_pdf(pdf_template, f'{nombre_completo}.pdf', data_dict)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
-    open_chrome(f'{nombre_completo}.pdf')
+    st.write(f'{nombre_completo}')
+    # open_chrome(f'{nombre_completo}.pdf')
 
     displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
