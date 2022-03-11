@@ -1056,7 +1056,7 @@ if gen_pdf:
     displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
 path_folder = os.getcwd()+'/Intermediate_Data/'+'Annex '+str(i+1)+'.pdf'
-st.write('AQUI',f'path_folder')
+st.write('AQUI',f'{path_folder}')
 
 
 # def get_pdf_files(path):
