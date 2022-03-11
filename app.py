@@ -133,7 +133,7 @@ gpc = [
 'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
 ]
 
-path_folder = '.'+os.getcwd()+'/temp_pdf/'
+path_folder = os.getcwd()+'/temp/'
 municipios = pd.read_csv('./mx.csv')
 input_pdf_name = './HC_SALME_python.pdf'
 #cie = CIECodes()
@@ -772,7 +772,6 @@ SUBTYPE_KEY = '/Subtype'
 WIDGET_SUBTYPE_KEY = '/Widget'
 
 pdf_template = input_pdf_name
-pdf_output = "outputHC.pdf"
 def fill_pdf(input_pdf_path, output_pdf_path, data_dict):
     template_pdf = pdfrw.PdfReader(input_pdf_path)
     for page in template_pdf.pages:
