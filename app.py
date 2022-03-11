@@ -1052,6 +1052,7 @@ if gen_pdf:
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
     st.write(f'{nombre_completo}')
+    displayPDF(f'{path_folder}{nombre_completo}.pdf')
     open_chrome(f'{path_folder}{nombre_completo}.pdf')
 
     displayPDF(f'{nombre_completo}.pdf')
