@@ -133,7 +133,7 @@ gpc = [
 'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
 ]
 
-path_folder = os.getcwd()+'/temp_pdf/'
+path_folder = os.getcwd()+'./temp_pdf/'
 municipios = pd.read_csv('./mx.csv')
 input_pdf_name = './HC_SALME_python.pdf'
 #cie = CIECodes()
