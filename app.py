@@ -1043,6 +1043,8 @@ with escala_expander:
     escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
     displayPDF(f'clinimetrias/{escala_selected}')
 
+
+
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
     fillpdfs.write_fillable_pdf(pdf_template, f'{nombre_completo}.pdf', data_dict)
@@ -1053,8 +1055,8 @@ if gen_pdf:
 
     displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
-
-
+path_folder = os.getcwd()+'/Intermediate_Data/'+'Annex '+str(i+1)+'.pdf'
+st.write('AQUI',f'path_folder')
 
 
 # def get_pdf_files(path):
