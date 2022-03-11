@@ -133,6 +133,7 @@ gpc = [
 'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
 ]
 
+path_folder = os.getcwd()+'/temp_pdf/'
 municipios = pd.read_csv('./mx.csv')
 input_pdf_name = './HC_SALME_python.pdf'
 #cie = CIECodes()
@@ -1047,15 +1048,14 @@ with escala_expander:
 
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
-    fillpdfs.write_fillable_pdf(pdf_template, f'{nombre_completo}.pdf', data_dict)
+    fillpdfs.write_fillable_pdf(pdf_template, f'{path_folder}{nombre_completo}.pdf', data_dict)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
     st.write(f'{nombre_completo}')
-    # open_chrome(f'{nombre_completo}.pdf')
+    open_chrome(f'{path_folder}{nombre_completo}.pdf')
 
     displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
-path_folder = os.getcwd()+'/Intermediate_Data/'+'Annex '+str(i+1)+'.pdf'
 st.write('AQUI',f'{path_folder}')
 
 
