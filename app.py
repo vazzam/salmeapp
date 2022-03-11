@@ -1051,9 +1051,10 @@ if gen_pdf:
     fillpdfs.write_fillable_pdf(pdf_template, f'{path_folder}{nombre_completo}.pdf', data_dict)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
-    st.write(f'{nombre_completo}')
+    # st.write(f'{nombre_completo}')
     displayPDF(f'{path_folder}{nombre_completo}.pdf')
     # open_chrome(f'{path_folder}{nombre_completo}.pdf')
+displayPDF(f'{path_folder}{nombre_completo}.pdf')
 
     # displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
