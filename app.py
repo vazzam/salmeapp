@@ -17,11 +17,34 @@ from fillpdf import fillpdfs
 import base64
 import os
 from streamlit_timeline import timeline
+import boto3
+import ocifs
+
+# fs = ocifs.OCIFileSystem()
+# ls = fs.ls('salme@axdemgciyden/HC_SALME_python.pdf')
+
 
 
 import sys
 import subprocess
 import webbrowser
+
+def cloud_upload():
+    s3 = boto3.resource(
+    's3',
+    region_name="us-phoenix-1",
+    aws_secret_access_key="Dvh7PajElAvBhArnnyQAwdH3hThV1X+N66fSgWqMMWk=",
+    aws_access_key_id="c5fb240cf770e23ddf61803cbd076bf2de16ad77",
+    endpoint_url="https://axdemgciyden.compat.objectstorage.us-phoenix-1.oraclecloud.com"
+    )
+
+    # Print out bucket names
+    for bucket in s3.buckets.all():
+        print(bucket.name)
+        st.write(f'bucket: {bucket.name}')
+        # Upload a File to you OCI Bucket, 2nd value is your bucket name 
+        s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
+        st.write('','HECHO')
 
 def calculateAge(birthDate): 
     hoy = datetime.now()
@@ -772,6 +795,7 @@ SUBTYPE_KEY = '/Subtype'
 WIDGET_SUBTYPE_KEY = '/Widget'
 
 pdf_template = input_pdf_name
+pdf_output = "outputHC.pdf"
 def fill_pdf(input_pdf_path, output_pdf_path, data_dict):
     template_pdf = pdfrw.PdfReader(input_pdf_path)
     for page in template_pdf.pages:
@@ -1047,18 +1071,16 @@ with escala_expander:
 
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
-    st.write('',f'{path_folder}{nombre_completo}.pdf')
-    fillpdfs.write_fillable_pdf(pdf_template, f'{path_folder}{nombre_completo}.pdf', data_dict)
+    temp_pdf = fillpdfs.write_fillable_pdf(pdf_template, f'{path_folder}{nombre_completo}.pdf', data_dict)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
-    # st.write(f'{nombre_completo}')
-    displayPDF(f'{path_folder}{nombre_completo}.pdf')
-    # open_chrome(f'{path_folder}{nombre_completo}.pdf')
-displayPDF(f'{path_folder}{nombre_completo}.pdf')
+    st.write(f'{nombre_completo}')
+    open_chrome(f'{path_folder}{nombre_completo}.pdf')
+    # cloud_upload()
 
-    # displayPDF(f'{nombre_completo}.pdf')
+    displayPDF(f'{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
-# st.write('AQUI',f'{path_folder}')
+st.write('AQUI',f'{path_folder}')
 
 
 # def get_pdf_files(path):
