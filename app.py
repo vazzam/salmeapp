@@ -17,8 +17,8 @@ from fillpdf import fillpdfs
 import base64
 import os
 from streamlit_timeline import timeline
-import boto3
-import ocifs
+# import boto3
+# import ocifs
 
 # fs = ocifs.OCIFileSystem()
 # ls = fs.ls('salme@axdemgciyden/HC_SALME_python.pdf')
@@ -29,22 +29,22 @@ import sys
 import subprocess
 import webbrowser
 
-def cloud_upload():
-    s3 = boto3.resource(
-    's3',
-    region_name="us-phoenix-1",
-    aws_secret_access_key="Dvh7PajElAvBhArnnyQAwdH3hThV1X+N66fSgWqMMWk=",
-    aws_access_key_id="c5fb240cf770e23ddf61803cbd076bf2de16ad77",
-    endpoint_url="https://axdemgciyden.compat.objectstorage.us-phoenix-1.oraclecloud.com"
-    )
+# def cloud_upload():
+#     s3 = boto3.resource(
+#     's3',
+#     region_name="us-phoenix-1",
+#     aws_secret_access_key="Dvh7PajElAvBhArnnyQAwdH3hThV1X+N66fSgWqMMWk=",
+#     aws_access_key_id="c5fb240cf770e23ddf61803cbd076bf2de16ad77",
+#     endpoint_url="https://axdemgciyden.compat.objectstorage.us-phoenix-1.oraclecloud.com"
+#     )
 
-    # Print out bucket names
-    for bucket in s3.buckets.all():
-        print(bucket.name)
-        st.write(f'bucket: {bucket.name}')
-        # Upload a File to you OCI Bucket, 2nd value is your bucket name 
-        s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
-        st.write('','HECHO')
+#     # Print out bucket names
+#     for bucket in s3.buckets.all():
+#         print(bucket.name)
+#         st.write(f'bucket: {bucket.name}')
+#         # Upload a File to you OCI Bucket, 2nd value is your bucket name 
+#         s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
+#         st.write('','HECHO')
 
 def calculateAge(birthDate): 
     hoy = datetime.now()
