@@ -1078,7 +1078,7 @@ if gen_pdf:
     # open_chrome(f'{path_folder}{nombre_completo}.pdf')
     # cloud_upload()
 
-    displayPDF(f'{nombre_completo}.pdf')
+    displayPDF(f'{path_folder}{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
 st.write('AQUI',f'{path_folder}')
 
