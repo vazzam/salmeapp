@@ -46,7 +46,7 @@ import webbrowser
 #         s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
 #         st.write('','HECHO')
 
-def download(path):
+def download_file(path):
    st.markdown(f'''<a href="{path}" download>
     <p>descarga</p>
     </a>
@@ -1085,6 +1085,7 @@ if gen_pdf:
     # cloud_upload()
 
     displayPDF(f'{path_folder}{nombre_completo}.pdf')
+    download_file((f'{path_folder}{nombre_completo}.pdf'))
     # displayPDF('DSM_5.pdf')
 st.write('AQUI',f'{path_folder}')
 
