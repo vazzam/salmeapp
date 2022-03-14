@@ -46,6 +46,12 @@ import webbrowser
 #         s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
 #         st.write('','HECHO')
 
+def download(path):
+   st.markdown(f'''<a href="{path}" download>
+    <p>descarga</p>
+    </a>
+    ''', unsafe_allow_html=True)
+
 def calculateAge(birthDate): 
     hoy = datetime.now()
     hoy = hoy.strftime("%d%m%Y")
