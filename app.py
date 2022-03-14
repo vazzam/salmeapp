@@ -1087,7 +1087,7 @@ if gen_pdf:
     # cloud_upload()
 
     displayPDF(f'{path_folder}{nombre_completo}.pdf')
-    download(f'{path_folder}{nombre_completo}.pdf')
+    # download(f'{path_folder}{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
 st.write('AQUI',f'{path_folder}')
 
