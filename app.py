@@ -1,3 +1,4 @@
+from turtle import down
 import altair as alt
 import streamlit as st
 import pandas as pd
@@ -45,6 +46,13 @@ import webbrowser
 #         # Upload a File to you OCI Bucket, 2nd value is your bucket name 
 #         s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
 #         st.write('','HECHO')
+
+def download(path):
+   st.markdown(f'''<a href="{path}" download>
+
+    </a>
+    ''', unsafe_allow_html=True)
+
 
 def calculateAge(birthDate): 
     hoy = datetime.now()
@@ -1079,6 +1087,7 @@ if gen_pdf:
     # cloud_upload()
 
     displayPDF(f'{path_folder}{nombre_completo}.pdf')
+    download(f'{path_folder}{nombre_completo}.pdf')
     # displayPDF('DSM_5.pdf')
 st.write('AQUI',f'{path_folder}')
 
