@@ -17,13 +17,13 @@ from fillpdf import fillpdfs
 import base64
 import os
 from streamlit_timeline import timeline
-# import boto3
+import boto3
 # import ocifs
 
 # fs = ocifs.OCIFileSystem()
 # ls = fs.ls('salme@axdemgciyden/HC_SALME_python.pdf')
 
-
+s3_client = boto3.resource('s3')
 
 import sys
 import subprocess
@@ -47,10 +47,11 @@ import webbrowser
 #         st.write('','HECHO')
 
 def download_file(path):
-   st.markdown(f'''<a href="{path}" download>
-    <p>descarga</p>
-    </a>
-    ''', unsafe_allow_html=True)
+    st.markdown(f'{path}')
+    st.markdown(f'''<a href="{path}" download>
+        <p>descarga</p>
+        </a>
+        ''', unsafe_allow_html=True)
 
 def calculateAge(birthDate): 
     hoy = datetime.now()
@@ -84,9 +85,23 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+# import s3fs
+# fs = s3fs.S3FileSystem(anon=False)
+# st.markdown(fs.ls('salme'))
 
+def s3_upload(bucket_name, file_path, key_obj_path):
+    salme_bucket = s3_client.Bucket(bucket_name)
+    bucket_file_path = file_path
+    key_object = key_obj_path
+    salme_bucket.upload_file(bucket_file_path, key_object)
 
+def s3_download(bucket_name, target_path, origin_file_path):
+    salme_bucket = s3_client.Bucket(bucket_name)
+    bucket_file_path = target_path
+    st.write('',f'KEY: {origin_file_path}, FILENAME: {target_path}')
+    salme_bucket.download_file(Key = target_path, Filename = origin_file_path)
 
+    
 @st.cache(persist=True, suppress_st_warning=True)
 def create_sidebar(escalas):
     """
@@ -161,6 +176,10 @@ gpc = [
 'SS-666-14 Prevención, diagnóstico y manejo de la depresión prenatal', 'SS-294-10 Detección y atención de violencia de pareja en adulto',
 'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
 ]
+
+pat = '<p><a href="tmp/.pdf">pdf</a></p>'
+st.markdown(pat, unsafe_allow_html=True)
+
 
 path_folder = os.getcwd()+'/tmp/'
 municipios = pd.read_csv('./mx.csv')
@@ -1083,9 +1102,14 @@ if gen_pdf:
     st.write(f'{nombre_completo}')
     # open_chrome(f'{path_folder}{nombre_completo}.pdf')
     # cloud_upload()
+    hc_name = f'{path_folder}{nombre_completo}.pdf'
+    s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
+    hc_pdf = s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
+    # st.write('ARCHIVO:',hc_pdf)
+    # st.download_button('Descarge archivo', hc_pdf)
 
-    displayPDF(f'{path_folder}{nombre_completo}.pdf')
-    download_file((f'{path_folder}{nombre_completo}.pdf'))
+    # displayPDF(f'{path_folder}{nombre_completo}.pdf')
+
     # displayPDF('DSM_5.pdf')
 st.write('AQUI',f'{path_folder}')
 
