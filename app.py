@@ -25,8 +25,7 @@ import functions as fx
 
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
 
-s3_client = boto3.resource('s3')
-s3 = boto3.client('s3')
+
 
 st.set_page_config(
     page_title=" Historia Clínica",

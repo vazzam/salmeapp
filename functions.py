@@ -20,6 +20,9 @@ import sys
 import subprocess
 import webbrowser
 
+s3_client = boto3.resource('s3')
+s3 = boto3.client('s3')
+
 
 def calculateAge(birthDate): 
     hoy = datetime.now()
