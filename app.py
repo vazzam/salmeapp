@@ -909,7 +909,7 @@ if gen_pdf:
     st.balloons()
     st.write(f'{nombre_completo}')
 
-    hc_name = f'{path_folder}{nombre_completo}.pdf'
+    hc_name = f'{nombre_completo}.pdf'
     fx.s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
     hc_pdf = fx.s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
     response = s3.generate_presigned_url('get_object',\
