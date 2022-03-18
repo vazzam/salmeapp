@@ -897,6 +897,7 @@ css_code = '<style>ul{\
 
 escala_expander = st.expander('Visor de escalas')
 with escala_expander:
+
     escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
     fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
 
@@ -915,4 +916,5 @@ if gen_pdf:
     response = s3.generate_presigned_url('get_object',\
         Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
                 ExpiresIn=240)
+    st.download_button('Descargar Historia Clínica', response)
     st.markdown(response, unsafe_allow_html=True)
