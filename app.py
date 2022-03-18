@@ -911,8 +911,8 @@ if gen_pdf:
     st.write(f'{nombre_completo}')
 
     hc_name = f'{path_folder}{nombre_completo}.pdf'
-    s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
-    hc_pdf = s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
+    fx.s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
+    hc_pdf = fx.s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
     response = s3.generate_presigned_url('get_object',\
         Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
                 ExpiresIn=240)
