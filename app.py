@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-#from cie.cie10 import CIECodes
 import datetime as dt
 from datetime import date, datetime 
 import pandas as pd
@@ -11,73 +10,23 @@ from dateutil.relativedelta import relativedelta # to add days or years
 from fdfgen import forge_fdf
 import PyPDF2
 from PyPDF2 import PdfFileReader, PdfFileWriter
-#from PyPDF2 import PdfFileWriter
 import pdfrw
 from fillpdf import fillpdfs
 import base64
 import os
 from streamlit_timeline import timeline
 import boto3
-# import ocifs
-
-# fs = ocifs.OCIFileSystem()
-# ls = fs.ls('salme@axdemgciyden/HC_SALME_python.pdf')
-
-s3_client = boto3.resource('s3')
-
-import sys
+import sys  
 import subprocess
 import webbrowser
-
-# def cloud_upload():
-#     s3 = boto3.resource(
-#     's3',
-#     region_name="us-phoenix-1",
-#     aws_secret_access_key="Dvh7PajElAvBhArnnyQAwdH3hThV1X+N66fSgWqMMWk=",
-#     aws_access_key_id="c5fb240cf770e23ddf61803cbd076bf2de16ad77",
-#     endpoint_url="https://axdemgciyden.compat.objectstorage.us-phoenix-1.oraclecloud.com"
-#     )
-
-#     # Print out bucket names
-#     for bucket in s3.buckets.all():
-#         print(bucket.name)
-#         st.write(f'bucket: {bucket.name}')
-#         # Upload a File to you OCI Bucket, 2nd value is your bucket name 
-#         s3.meta.client.upload_file('HC_SALME_python.pdf', 'salme', 'HC_SALME_python.pdf')
-#         st.write('','HECHO')
-
-def download_file(path):
-    st.markdown(f'{path}')
-    st.markdown(f'''<a href="{path}" download>
-        <p>descarga</p>
-        </a>
-        ''', unsafe_allow_html=True)
-
-def calculateAge(birthDate): 
-    hoy = datetime.now()
-    hoy = hoy.strftime("%d%m%Y")
-    today_day = hoy[0:2]
-    today_month = hoy[2:4]
-    today_year = hoy[4:]
-    day = birthDate[0:2]
-    month = birthDate[2:5]
-    year = birthDate[4:]
-    edad = int(today_year) - int(year) - ((int(today_month), int(today_day)) < (int(month), int(day)))
-    return edad
+import functions as fx
 
 
-def open_chrome(pdf_file):
-    """
-    Open a PDF file in a new tab in chrome
-    """
-    if sys.platform.startswith('darwin'):
-        subprocess.call(('open', pdf_file))
-    elif os.name == 'nt':
-        os.startfile(pdf_file)
-    elif os.name == 'posix':
-        subprocess.call(('xdg-open', pdf_file))
 
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
+
+s3_client = boto3.resource('s3')
+s3 = boto3.client('s3')
 
 st.set_page_config(
     page_title=" Historia Clínica",
@@ -85,86 +34,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# import s3fs
-# fs = s3fs.S3FileSystem(anon=False)
-# st.markdown(fs.ls('salme'))
-
-def s3_upload(bucket_name, file_path, key_obj_path):
-    salme_bucket = s3_client.Bucket(bucket_name)
-    bucket_file_path = file_path
-    key_object = key_obj_path
-    salme_bucket.upload_file(bucket_file_path, key_object)
-
-def s3_download(bucket_name, target_path, origin_file_path):
-    salme_bucket = s3_client.Bucket(bucket_name)
-    bucket_file_path = target_path
-    st.write('',f'KEY: {origin_file_path}, FILENAME: {target_path}')
-    salme_bucket.download_file(Key = target_path, Filename = origin_file_path)
-
-    
-@st.cache(persist=True, suppress_st_warning=True)
-def create_sidebar(escalas):
-    """
-    create streamlit sidebar with a multiselect including options 'EEAG' and 'phq9'
-    """
-    sidebar_selections = st.sidebar.multiselect(
-        'Selecciona la escala:',
-        escalas
-    )
-    return sidebar_selections
-
-def age_calc(birthDate):
-    today = dt.date.today()
-    st.write((datetime.fromisoformat(birthDate)))
-    age = today.year - date(birthDate).year - ((today.month, today.day) < (birthDate.month, birthDate.day))
-    return age
-
-def calculate_age(birth_date):
-    today = dt.date.today()
-    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    return age
-
-@st.cache()
-def load_mexico_cities():
-    return pd.read_csv('./mx.csv')
-@st.cache()
-def municipios():
-    df = load_mexico_cities()
-    estados = st.multiselect('Estados', df['admin_name'].unique(), key=0)
-    ciudades = df[df['admin_name'].isin(estados)]['city']
-    ciudades = st.selectbox('',ciudades)
-
-
-def f_nacimiento():
-    #format = 'DD MMM, YYYY'  # format output
-    start_date = dt.date(year=1920,month=1,day=1)-relativedelta(years=2)  #  I need some range in the past
-    end_date = dt.datetime.now().date()
-    max_days = end_date-start_date
-    #slider = st.date_input('Fecha de nacimiento: ', key=93423)#min_value=start_date, value=end_date, max_value=end_date, key=000)
-    fecha = fecha
-    return(fecha)
-# @st.cache(persist=True)
-
-def displayPDF(file):
-    # Opening file from file path
-    with open(file, "rb") as f:
-        base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-
-    # Embedding PDF in HTML
-    pdf_display = F'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="1400" type="application/pdf"></iframe>'
-    # Displaying File
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
-
-def displayPDF_2(file):
-    # Opening file from file path
-    with open(file, "rb") as f:
-        base64_pdf = f.read()
-
-    # Embedding PDF in HTML
-    pdf_display = F'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="1400" type="application/pdf"></iframe>'
-    # Displaying File
-    st.markdown(pdf_display, unsafe_allow_html=True)
 
 escalas = ['RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf', 'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf', 'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf', 'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf']
 gpc = [
@@ -177,25 +46,12 @@ gpc = [
 'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
 ]
 
-pat = '<p><a href="tmp/.pdf">pdf</a></p>'
-st.markdown(pat, unsafe_allow_html=True)
-
-
 path_folder = os.getcwd()+'/tmp/'
-municipios = pd.read_csv('./mx.csv')
-input_pdf_name = './HC_SALME_python.pdf'
-#cie = CIECodes()
+municipios = pd.read_csv('./data/mx.csv')
+input_pdf_name = './data/HC_SALME_python.pdf'
 renglon = '\n'
-
-@st.cache(persist=True)
-def cie_10():
-    cie10 = pd.read_csv('cie-10.csv', usecols=[0,6], header=0, names=['code','diagnostic'])
-    cie10['code'] = cie10['diagnostic'] + ' CIE-10 ('+ cie10['code']+')'
-    return cie10
-
 date = datetime.now()
 date = date.strftime("%d/%m/%Y %H:%M")
-#estados = ['Aguascalientes','Baja California','Baja California Sur','Campeche','Chiapas','Chihuahua','Coahuila de Zaragoza','Colima','Ciudad de México','Durango','Guanajuato','Guerrero','Hidalgo','Jalisco','Estado de Mexico','Michoacan de Ocampo','Morelos','Nayarit','Nuevo Leon','Oaxaca','Puebla','Queretaro de Arteaga','Quintana Roo','San Luis Potosi','Sinaloa','Sonora','Tabasco','Tamaulipas','Tlaxcala','Veracruz de Ignacio de la Llave','Yucatan','Zacatecas']
 st.sidebar.write(f'<p style="border-color: #FF4B4B;border-bottom-style: solid;border-radius: 4px;\
 border: 2px solid none;padding: 0px 10px 0px; margin: -75px; color: white; font-size: 45px; \
 text-style: bold;text-align:center; text-style: bold;">Apartados</p>', unsafe_allow_html=True)\
@@ -246,10 +102,6 @@ with main_col1:
 with main_col2:
     "# Historia clínica de psiquiatría"
 
-
-#ficha = '<p style="color:Blue; font-size: 25px;">Ficha de identificación?</p>'
-#f_nacimiento = f_nacimiento.strftime("%d/%m/%Y")
-
 main_form = st.form('main_form')
 with main_form:
     st.header("Ficha de identificación")
@@ -295,22 +147,18 @@ with main_form:
 
 
     with col9:
-        edad = st.text_input('Edad:',f'{calculateAge(f_nacimiento)}')#st.text_input('Edad: ', '0')
+        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)}')#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
         edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
-        #edo_nac = [edo_nac]
-        #st.write((edo_nac))1980/11/02
+
     with col11:
-        #ciudades = df[df['admin_name'].isin(edo_nac)]['city']
         ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
-        #ciudades = st.selectbox('Cd. de nacimiento:',ciudades,key='cds')
 
 #     #===================== DOMICILSemaforización y tiempo de espera estimado *
 # Rojo (emergencia) tiempo de espera INMEDIATO
 # Naranja (urgencia calificada) tiempo de espera 0 A 30 MIN
 # Amarillo (urgencia no calificada) tiempo de espera 30 A 60 MIN
-# IO 
 
     st.subheader('Domicilio')
     col12, col13, col14,col15, col16 = st.columns([0.20,0.35,0.10,0.10,0.15])
@@ -352,14 +200,6 @@ with main_form:
 
         escolaridad_arr = ['Ninguna', 'Primaria', 'Secundaria', 'Bachillerato', 'Licenciatura', 'Posgrado']
         escolaridad = st.selectbox('Escolaridad: ', escolaridad_arr)
-        # for i in range(len(escolaridad_arr)):
-        #     st.write(escolaridad_arr[i])
-
-        #     if escolaridad == escolaridad_arr[i]:
-        #         st.write('AQUIIIIIIIIIIIIIIII')
-        #         st.write('Coincide - ',escolaridad_arr[i])
-        #         esc_dict[escolaridad_arr[i]] = 'Yes'
-        #         st.write(esc_dict[escolaridad_arr[i]])
 
 
     with col22:
@@ -738,7 +578,7 @@ with form_dx:
 
     DX = st.expander('Físicos, psiquiátricos, personalidad, psicosocial')
     with DX:
-        cie10 = cie_10()
+        cie10 = fx.cie_10()
         lista_problemas = st.multiselect('Seleccionar diagnósticos', cie10['code'])
         str_dx = ''
         for i in range(len(lista_problemas)):
@@ -796,8 +636,6 @@ def fill_form(data_dict, pdf_file_name, out_file_name=None):
     pdf_writer = PdfFileWriter()
     st.write(data_dict)
 
-    # for page in range(pdf_reader.getNumPages()):
-    #     pdf_writer.addPage(pdf_reader.getPage(page))
 
     for field in pdf_reader.getFormTextFields().items():
         key = field[0]
@@ -842,32 +680,8 @@ def fill_pdf(input_pdf_path, output_pdf_path, data_dict):
     template_pdf.Root.AcroForm.update(pdfrw.PdfDict(NeedAppearances=pdfrw.PdfObject('true')))  # NEW
     pdfrw.PdfWriter().write(output_pdf_path, template_pdf)
     st.success('SE CREÓ PDF')
-# data_dict = {
-#     "1 CURP":curp,
-#     "2. NÚMERO DE EXPEDIENTE":no_expediente,
-#     "3 FECHA DE ELABORACIÓN":date_str,
-#     "Nombres":nombre,
-#     "Primer apellido":apellido_paterno,
-#     "Segundo apellido":apellido_materno,
-#     "Mes":'',
-#     "Años":edad,
-#     'Hombre':2
-# }
 
-# PDF_BUTTON = st.button('Llenar formulario PDF')
-# if PDF_BUTTON:
-#     fill()
-#     st.success('Se han guardado los cambios')
-#     st.write(nombre)
-#     fill_pdf(pdf_template, pdf_output, data_dict)
-
-# pdftk Plantilla HC SALME.pdf dump_data_fields output fields.txt
 fillpdfs.get_form_fields(pdf_template)
-
-# returns a dictionary of fields
-# Set the returned dictionary values a save to a variable
-# For radio boxes ('Off' = not filled, 'Yes' = filled)
-
 
 aviso_alergias = ''
 
@@ -1018,12 +832,6 @@ for i in range(len(trabajo_arr)):
 #===========================================
 #       EXPLORACIÓN FÍSICA
 #===========================================
-# if cabeza == 'Sí':
-#     st.write('aquiiiii',cabeza)
-#     data_dict['cabeza_no'] = 'Off'
-#     data_dict['cabeza_si'] = 'Yes'
-
-
 for j in range(len(alteraciones_arr)):
     if cabeza == alteraciones_arr[j]:
         data_dict[cabeza_options[j]] = 'Yes'
@@ -1090,7 +898,7 @@ css_code = '<style>ul{\
 escala_expander = st.expander('Visor de escalas')
 with escala_expander:
     escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
-    displayPDF(f'clinimetrias/{escala_selected}')
+    fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
 
 
 
@@ -1100,45 +908,11 @@ if gen_pdf:
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
     st.write(f'{nombre_completo}')
-    # open_chrome(f'{path_folder}{nombre_completo}.pdf')
-    # cloud_upload()
+
     hc_name = f'{path_folder}{nombre_completo}.pdf'
     s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
     hc_pdf = s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
-    # st.write('ARCHIVO:',hc_pdf)
-    # st.download_button('Descarge archivo', hc_pdf)
-
-    # displayPDF(f'{path_folder}{nombre_completo}.pdf')
-
-    # displayPDF('DSM_5.pdf')
-st.write('AQUI',f'{path_folder}')
-
-
-# def get_pdf_files(path):
-#     files = []
-#     for r, d, f in os.walk(path):
-#         for file in f: 
-#             if '.pdf' in file:
-#                 files.append(file)
-#     return files
-
-# # pylint: disable=line-too-long
-# def display_pdf(file_path, height=None, width=None):
-#     """
-#     display a pdf in a streamlit app
-#     """
-#     # pylint: disable=line-too-long
-#     st.markdown("### PDF file")
-#     with open(file_path, 'rb') as f:
-#         base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-
-#     if height is None:
-#         height = 300
-
-#     if width is None:
-#         width = 300
-
-#     file_pdf_path = 'file://DSM_5.pdf'
-#     st.markdown(f'<iframe src={base64_pdf} seamless id="PageContent_Iframe">here</iframe>', unsafe_allow_html=True)
-#     st.write(f'Done:')
-#     return dsm
+    response = s3.generate_presigned_url('get_object',\
+        Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
+                ExpiresIn=240)
+    st.markdown(response, unsafe_allow_html=True)
