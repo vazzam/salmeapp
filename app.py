@@ -22,7 +22,7 @@ import webbrowser
 import functions as fx
 
 
-
+s3 = boto3.client('s3')
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
 
 
