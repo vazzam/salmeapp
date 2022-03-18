@@ -905,7 +905,7 @@ with escala_expander:
 
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
-    temp_pdf = fillpdfs.write_fillable_pdf(pdf_template, f'{path_folder}{nombre_completo}.pdf', data_dict)
+    temp_pdf = fillpdfs.write_fillable_pdf(pdf_template, f'./data{path_folder}{nombre_completo}.pdf', data_dict)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     st.balloons()
     st.write(f'{nombre_completo}')
