@@ -18,10 +18,48 @@ from streamlit_timeline import timeline
 import boto3
 import sys
 import subprocess
-import webbrowser
+from os.path import exists
+import streamlit.components.v1 as components
 
 s3_client = boto3.resource('s3')
 s3 = boto3.client('s3')
+
+def insert_css_url(file_name, url):
+    html_file = f'.html/{file_name}.html'
+    css_file = f'.css/{file_name}.css'
+    js_file = f'.js/{file_name}.js'
+        
+    if exists(f'{html_file}'):
+        with open(html_file) as f:
+            st.markdown(f'<p><a href="{url}" Target="_blank">{f.read()}</a></p>''', unsafe_allow_html=True)
+
+    if exists(f'{css_file}'):
+      with open(css_file) as f:
+        st.markdown(f'''<style>{f.read()}</style>''', unsafe_allow_html=True)
+
+    if exists(f'{js_file}'):
+      st.write('','HOLA')
+      with open(js_file, 'r') as l:
+        components.html('''<div><script src="js/paisaje.js"></script></div>''')
+
+
+def insert_css(file_name):
+    html_file = f'.html/{file_name}.html'
+    css_file = f'.css/{file_name}.css'
+    js_file = f'.js/{file_name}.js'
+        
+    if exists(f'{html_file}'):
+        with open(html_file) as f:
+            st.markdown(f'{f.read()}', unsafe_allow_html=True)
+
+    if exists(f'{css_file}'):
+      with open(css_file) as f:
+        st.markdown(f'''<style>{f.read()}</style>''', unsafe_allow_html=True)
+
+    if exists(f'{js_file}'):
+      st.write('','HOLA')
+      with open(js_file, 'r') as l:
+        components.html('''<div><script src="js/paisaje.js"></script></div>''')
 
 
 def calculateAge(birthDate): 
@@ -58,7 +96,7 @@ def s3_upload(bucket_name, file_path, key_obj_path):
 def s3_download(bucket_name, target_path, origin_file_path):
     salme_bucket = s3_client.Bucket(bucket_name)
     bucket_file_path = target_path
-    st.write('',f'KEY: {origin_file_path}, FILENAME: {target_path}')
+    # st.write('',f'KEY: {origin_file_path}, FILENAME: {target_path}')
     salme_bucket.download_file(Key = target_path, Filename = origin_file_path)
 
 @st.cache(persist = True)
@@ -97,3 +135,6 @@ def cie_10():
     cie10 = pd.read_csv('./data/cie-10.csv', usecols=[0,6], header=0, names=['code','diagnostic'])
     cie10['code'] = cie10['diagnostic'] + ' CIE-10 ('+ cie10['code']+')'
     return cie10
+
+def pdf_embed(url):
+    st.markdown(f'''{url}''', unsafe_allow_html=True)

@@ -20,12 +20,11 @@ import sys
 import subprocess
 import webbrowser
 import functions as fx
-
+import random
+import urllib.request
 
 s3 = boto3.client('s3')
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
-
-
 
 st.set_page_config(
     page_title=" Historia Clínica",
@@ -93,7 +92,6 @@ li {float: center;}li a {display: block;\
 <li><a href="#an-lisis"><b style=color:white;>Análisis</b></a></li>\
 </ul></body>\
 </html>',unsafe_allow_html=True)
-
 
 main_col1, main_col2 = st.columns([0.05,0.95])
 with main_col1:
@@ -472,13 +470,13 @@ with main_form:
                 talla_mts = talla/100
                 imc = peso/(talla_mts*talla_mts)
                 imc = "{:.2f}".format(round(imc, 2))
-            ta = st.text_input('Presión arterial:',key=87)
+            ta = st.text_input('Presión arterial:',f'{random.randint(100,130)}/{random.randint(66,78)}',key=87)
         with col75:
-            fc = st.text_input('Frecuencia cardiaca:',key=88)
+            fc = st.text_input('Frecuencia cardiaca:',f'{random.randint(68,88)}',key=88)
         with col76:
-            fr = st.text_input('Frecuencia respiratoria:',key=89)
+            fr = st.text_input('Frecuencia respiratoria:',f'{random.randint(17,21)}',key=89)
         with col77:
-            temp = st.text_input('Temperatura:',key=90)
+            temp = st.text_input('Temperatura:',f'{random.randint(362,369)/10}',key=90)
 
         st.subheader('Examen físico')
         alteraciones = '<p style="color:Red; font-size: 25px;">¿Alteraciones?</p>'
@@ -585,7 +583,7 @@ with form_dx:
             str_dx = f'{str_dx}{i+1}. {lista_problemas[i]}{renglon}'
         dxs = st.text_area('Lista de diagnósticos:',str_dx,height=250)
     st.header('Guía de práctica clínica')
-    guia = st.multiselect('',gpc)
+    guia = st.multiselect('',gpc,)
     st.header('Pronóstico y clinimetría')
     exp_pron = st.expander('Establezca el pronóstico y clinemtrias que apliquen')
     with exp_pron:
@@ -799,9 +797,9 @@ data_dict = {
     'clinimetria27': clinimetria,
     'pronostico28': pronostico,
     'tx29': tx,
-    'alergias_1': aviso_alergias,
-    'alergias_2': aviso_alergias,
-    'alergias_3': aviso_alergias,
+    'alergia_1': aviso_alergias,
+    'alergia_2': aviso_alergias,
+    'alergia_3': aviso_alergias,
     'guia': guia,
 
 
@@ -905,8 +903,7 @@ with escala_expander:
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
     temp_pdf = fillpdfs.write_fillable_pdf(pdf_template, f'{nombre_completo}.pdf', data_dict)
-    st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
-    st.balloons()
+    # st.balloons()
     st.write(f'{nombre_completo}')
 
     hc_name = f'{nombre_completo}.pdf'
@@ -915,5 +912,14 @@ if gen_pdf:
     response = s3.generate_presigned_url('get_object',\
         Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
                 ExpiresIn=240)
-    st.download_button('Descargar Historia Clínica', response)
-    st.markdown(response, unsafe_allow_html=True)
+    progress_bar = st.progress(0)
+    for i in range(100):
+        # Update progress bar.
+        progress_bar.progress(i + 1)
+        time.sleep(0.05)
+    st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
+    fx.insert_css_url('download_button', response)
+
+
+
+
