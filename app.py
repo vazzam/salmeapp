@@ -556,14 +556,14 @@ with main_form:
     if main_button:
         st.success('Se han guardado los cambios')
 
-dsm_form = st.form('dsm_form')
-with dsm_form:
-    # dsm_expander = st.expander('Consultar DSM 5')
-    # with dsm_expander:
-    image_dsm = st.image('dsm_portada.jpg', width=100)
-    dsm_button = st.form_submit_button('Consultar DSM 5')    
-    if dsm_button:
-        st.download_button('Descargar', 'data/DSM_5.pdf')
+# dsm_form = st.form('dsm_form')
+# with dsm_form:
+#     # dsm_expander = st.expander('Consultar DSM 5')
+#     # with dsm_expander:
+#     image_dsm = st.image('dsm_portada.jpg', width=100)
+#     dsm_button = st.form_submit_button('Consultar DSM 5')    
+#     if dsm_button:
+#         st.download_button('Descargar', 'data/DSM_5.pdf')
 
 form_dx = st.form('form_dx')
 with form_dx:
