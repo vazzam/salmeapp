@@ -331,8 +331,7 @@ with main_form:
     with APNP:
         col46, col47, col48, col49 = st.columns([0.2,0.2,0.2,0.2])
         with col46:
-            apnp_vive_con = st.selectbox('Vive con: ',['solo','con padre(s)','con conyuge',
-                        'con hermano(s)','con hijo(s)'],key='vive_con')
+            apnp_vive_con = st.text_input('¿Con quién vive?','con ',key='vive_con')
         with col47:
             apnp_tipo_vivienda = st.selectbox('Tipo de vivienda:',['casa','departamento','calle'],key='tipo_vivienda')
         with col48:
