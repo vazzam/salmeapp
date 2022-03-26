@@ -563,7 +563,7 @@ with dsm_form:
     image_dsm = st.image('dsm_portada.jpg', width=100)
     dsm_button = st.form_submit_button('Consultar DSM 5')    
     if dsm_button:
-        open_chrome(dsm_path)
+        st.download_button('Descargar', 'data/DSM_5.pdf')
 
 form_dx = st.form('form_dx')
 with form_dx:
