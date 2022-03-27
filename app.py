@@ -574,6 +574,7 @@ with form_dx:
 
     DX = st.expander('Físicos, psiquiátricos, personalidad, psicosocial')
     with DX:
+        @st.cache
         cie10 = fx.cie_10()
         lista_problemas = st.multiselect('Seleccionar diagnósticos', cie10['code'])
         str_dx = ''
