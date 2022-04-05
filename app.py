@@ -275,11 +275,11 @@ with main_form:
         col35, col36, col37 = st.columns([0.3,0.3,0.4])
 
         with col35:
-            ahf_hermanos = st.text_area('Hermanos: ','Negados',height=50,key='Hermanos')
+            ahf_hermanos = st.text_area('Hermanos: ','Antecedentes patológicos negados',height=50,key='Hermanos')
         with col36:
-            ahf_hijos = st.text_area('Hijos:','Negados',height=50,key='Hijos')
+            ahf_hijos = st.text_area('Hijos:','Antecedentes patológicos negados',height=50,key='Hijos')
         with col37:
-            ahf_otros = st.text_area('Otros:','Negados',height=50,key='Otros')
+            ahf_otros = st.text_area('Otros:','Antecedentes patológicos negados',height=50,key='Otros')
 
 
 
@@ -548,6 +548,10 @@ with main_form:
         ef_alteraciones = f'{alt_cabeza}{renglon}{alt_cuello}{renglon}{alt_cardio}{renglon}{alt_abdomen}{renglon}{alt_extremidades_sup}{renglon}{alt_extremidades_inf}{renglon}{alt_genitales}'
     st.write()
     st.header('Examen mental')
+    em_template = f'Encuentro a {nombre} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones \
+        psicomotrices y/o condcuta alucinada evidentes. Se refiere de ánimo "mas o menos (sic {nombre}), afecto eutímico. Discurso espontáneo, fluído, \
+            coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes, \
+                suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
         examen_mental = st.text_area('', key='ex_mental')
