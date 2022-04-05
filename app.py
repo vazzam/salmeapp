@@ -548,10 +548,10 @@ with main_form:
         ef_alteraciones = f'{alt_cabeza}{renglon}{alt_cuello}{renglon}{alt_cardio}{renglon}{alt_abdomen}{renglon}{alt_extremidades_sup}{renglon}{alt_extremidades_inf}{renglon}{alt_genitales}'
     st.write()
     st.header('Examen mental')
-    em_template = f'Encuentro a {nombre} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones \
-        psicomotrices y/o condcuta alucinada evidentes. Se refiere de ánimo "mas o menos (sic {nombre}), afecto eutímico. Discurso espontáneo, fluído, \
-            coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes, \
-                suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
+    em_template = f'Encuentro a {nombre.capitalize()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones \
+        psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {nombre.capitalize()}), afecto eutímico. Discurso espontáneo, fluído, \
+        coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes, \
+        suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
         examen_mental = st.text_area('',em_template, key='ex_mental')
