@@ -554,7 +554,7 @@ with main_form:
                 suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
-        examen_mental = st.text_area('', key='ex_mental')
+        examen_mental = st.text_area('',em_template, key='ex_mental')
 
     main_button = st.form_submit_button('Guardar historia clínica')
     if main_button:
