@@ -144,7 +144,7 @@ with main_form:
 
 
     with col9:
-        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)}')#st.text_input('Edad: ', '0')
+        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}')#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
         edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
@@ -548,14 +548,14 @@ with main_form:
         ef_alteraciones = f'{alt_cabeza}{renglon}{alt_cuello}{renglon}{alt_cardio}{renglon}{alt_abdomen}{renglon}{alt_extremidades_sup}{renglon}{alt_extremidades_inf}{renglon}{alt_genitales}'
     st.write()
     st.header('Examen mental')
-    em_template = f'Encuentro a {nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones \
-        psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {nombre.title()}), afecto eutímico. Discurso espontáneo, fluído, \
-        coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes, \
+    em_template = f'Encuentro a {nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones\
+        psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {nombre.title()}), afecto eutímico. Discurso espontáneo, fluído,\
+        coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes,\
         suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
 
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
-        examen_mental = st.text_area('',em_template, key='ex_mental')
+        examen_mental = st.text_area('', key='ex_mental')
 
     main_button = st.form_submit_button('Guardar historia clínica')
     if main_button:
@@ -687,7 +687,7 @@ fillpdfs.get_form_fields(pdf_template)
 aviso_alergias = ''
 
 if app_alergias != '':
-    aviso_alergias = f'Alergia a {app_alergias}'
+    aviso_alergias = f'Alergias: {app_alergias}'
 
 
 data_dict = {
@@ -785,7 +785,7 @@ data_dict = {
     'expediente15': no_expediente,
     'fecha16': date,
     'ef': f'{ef_merge} | FC: {fc} lpm, FR: {fr} rpm, TA: {ta} mmHg, Temperatura: {temp} °C | Peso: {peso} kg, Talla: {talla} cm, IMC: {imc}',
-    'presentacion': f'{nombre_completo}, {sexo} de {edad} años, oriunda y residente de {ciudades}, {edo_nac}. {edo_civil}, de religión {religion}, con estudios de {escolaridad} quien se dedica al {ocupacion} y actualmente esta {trabajo}.',
+    'presentacion': f'{nombre_completo}, {sexo} de {edad} años, nacido el {f_nacimiento}, oriundo y residente de {ciudades}, {edo_nac}. {edo_civil}, de religión {religion}, con estudios de {escolaridad} quien se desempeña como {ocupacion} y actualmente esta {trabajo}.',
     'mc17': mc,
     'pa18': pepa,
     'ahf19': ahf_merge,
@@ -924,6 +924,6 @@ if gen_pdf:
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     fx.insert_css_url('download_button', response)
 
-
+    # st.write(f'{fx.cie_11}')
 
 

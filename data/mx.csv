@@ -1,5 +1,5 @@
 city,lat,lng,country,iso2,admin_name,capital,population,population_proper
-Mexico City,19.4333,-99.1333,Mexico,MX,Ciudad de México,primary,20996000,8918653
+Ciudad de México,19.4333,-99.1333,Mexico,MX,Ciudad de México,primary,20996000,8918653
 Guadalajara,20.6767,-103.3475,Mexico,MX,Jalisco,admin,5253000,1460148
 Monterrey,25.6667,-100.3000,Mexico,MX,Nuevo León,admin,4295000,1109171
 Tijuana,32.5250,-117.0333,Mexico,MX,Baja California,minor,2384609,1902385
