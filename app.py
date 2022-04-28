@@ -50,48 +50,82 @@ input_pdf_name = './data/HC_SALME_python.pdf'
 renglon = '\n'
 date = datetime.now()
 date = date.strftime("%d/%m/%Y %H:%M")
-st.sidebar.write(f'<p style="border-color: #FF4B4B;border-bottom-style: solid;border-radius: 4px;\
-border: 2px solid none;padding: 0px 10px 0px; margin: -75px; color: white; font-size: 45px; \
-text-style: bold;text-align:center; text-style: bold;">Apartados</p>', unsafe_allow_html=True)\
 
-st.sidebar.write('<html><head><style>\
-ul {list-style-type: none;\
-  margin: -5px;\
-  padding: -10px;\
-  overflow: hidden;\
-  background-color: rgb(19, 23, 32);\
-}\
-li {float: center;}li a {display: block;\
-  font-size:15px;\
-  text-align: left;\
-  padding: 5px 5px 5px 10px;\
-  text-decoration: none;\
-}li a:hover:not(.active) {\
-  background-color: #FF4B4B;\
-  text-decoration:none\
-}.active {\
-  background-color: #04AA6D;\
-}\
-</style>\
-</head>\
-<body><ul>\
-<li><a href="#ficha-de-identificaci-n"><b style=color:white;>Ficha de identificación</b></a></li>\
-<li><a href="#motivo-de-consulta"><b style=color:white;>Motivo de consulta</b></a></li>\
-<li><a href="#padecimiento-actual"><b style=color:white;>Padecimiento actual</b></a></li>\
-<li><a href="#antecedentes-heredo-familiares"><b style=color:white;>Antecedentes heredofamiliares</b></a></li>\
-<li><a href="#antecedentes-personales-patol-gicos"><b style=color:white;>Antecedentes personales patológicos</b></a></li>\
-<li><a href="#antecedentes-personales-no-patol-gicos"><b style=color:white;>Antecedentes personales no patológicos</b></a></li>\
-<li><a href="#consumo-de-sustancias"><b style=color:white;>Consumo de sustancias</b></a></li>\
-<li><a href="#resultados-de-estudios-de-laboratorio-y-gabinete"><b style=color:white;>Laboratoriales</b></a></li>\
-<li><a href="#exploraci-n-f-sica"><b style=color:white;>Exploración física</b></a></li>\
-<li><a href="#examen-mental"><b style=color:white;>Examen mental</b></a></li>\
-<li><a href="#diagn-sticos"><b style=color:white;>Diagnósticos</b></a></li>\
-<li><a href="#pron-stico-y-clinimetr-a"><b style=color:white;>Pronóstico y clinimetría</b></a></li>\
-<li><a href="#visualizar-escalas"><b style=color:orange;>Escalas</b></a></li>\
-<li><a href="#tratamiento"><b style=color:white;>Tratamiento</b></a></li>\
-<li><a href="#an-lisis"><b style=color:white;>Análisis</b></a></li>\
-</ul></body>\
-</html>',unsafe_allow_html=True)
+st.markdown(
+"""
+<style>
+[data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
+width: 600px;
+}
+[data-testid="stSidebar"][aria-expanded="false"] > div:first-child {
+width: 600px;
+margin-left: -600px;
+}
+</style>
+""",
+unsafe_allow_html=True
+)
+
+with st.sidebar:
+    dsm_spec = st.expander('Especificadores DSM')
+    with dsm_spec:
+        fx.displayPDF(f'./data/especificadores.pdf')
+
+    dsm_pdf_1 = st.expander('Criterios DSM 5 Tomo 1')
+    with dsm_pdf_1:
+        fx.displayPDF(f'./data/DSM_5_1.pdf')
+
+    dsm_pdf_2 = st.expander('Criterios DSM 5 Tomo 2')
+    with dsm_pdf_2:
+        fx.displayPDF(f'./data/DSM_5_2.pdf')
+
+    escalas_expander = st.expander('Clinimetrías')
+    with escalas_expander:
+        escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
+        fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+
+# st.sidebar.write(f'<p style="border-color: #FF4B4B;border-bottom-style: solid;border-radius: 4px;\
+# border: 2px solid none;padding: 0px 10px 0px; margin: -75px; color: white; font-size: 45px; \
+# text-style: bold;text-align:center; text-style: bold;">Apartados</p>', unsafe_allow_html=True)\
+
+# st.sidebar.write('<html><head><style>\
+# ul {list-style-type: none;\
+#   margin: -5px;\
+#   padding: -10px;\
+#   overflow: hidden;\
+#   background-color: rgb(19, 23, 32);\
+# }\
+# li {float: center;}li a {display: block;\
+#   font-size:15px;\
+#   text-align: left;\
+#   padding: 5px 5px 5px 10px;\
+#   text-decoration: none;\
+# }li a:hover:not(.active) {\
+#   background-color: #FF4B4B;\
+#   text-decoration:none\
+# }.active {\
+#   background-color: #04AA6D;\
+# }\
+# </style>\
+# </head>\
+# <body><ul>\
+# <li><a href="#ficha-de-identificaci-n"><b style=color:white;>Ficha de identificación</b></a></li>\
+# <li><a href="#motivo-de-consulta"><b style=color:white;>Motivo de consulta</b></a></li>\
+# <li><a href="#padecimiento-actual"><b style=color:white;>Padecimiento actual</b></a></li>\
+# <li><a href="#antecedentes-heredo-familiares"><b style=color:white;>Antecedentes heredofamiliares</b></a></li>\
+# <li><a href="#antecedentes-personales-patol-gicos"><b style=color:white;>Antecedentes personales patológicos</b></a></li>\
+# <li><a href="#antecedentes-personales-no-patol-gicos"><b style=color:white;>Antecedentes personales no patológicos</b></a></li>\
+# <li><a href="#consumo-de-sustancias"><b style=color:white;>Consumo de sustancias</b></a></li>\
+# <li><a href="#resultados-de-estudios-de-laboratorio-y-gabinete"><b style=color:white;>Laboratoriales</b></a></li>\
+# <li><a href="#exploraci-n-f-sica"><b style=color:white;>Exploración física</b></a></li>\
+# <li><a href="#examen-mental"><b style=color:white;>Examen mental</b></a></li>\
+# <li><a href="#diagn-sticos"><b style=color:white;>Diagnósticos</b></a></li>\
+# <li><a href="#pron-stico-y-clinimetr-a"><b style=color:white;>Pronóstico y clinimetría</b></a></li>\
+# <li><a href="#visualizar-escalas"><b style=color:orange;>Escalas</b></a></li>\
+# <li><a href="#tratamiento"><b style=color:white;>Tratamiento</b></a></li>\
+# <li><a href="#an-lisis"><b style=color:white;>Análisis</b></a></li>\
+# </ul></body>\
+# </html>',unsafe_allow_html=True)
 
 main_col1, main_col2 = st.columns([0.05,0.95])
 with main_col1:
@@ -573,9 +607,15 @@ with main_form:
 form_dx = st.form('form_dx')
 with form_dx:
 
-    dx_header, dsm = st.columns([0.8,0.2])
+    dx_header, dsm = st.columns([0.5,0.5])
     with dx_header:
         st.header('Diagnósticos')
+    # with dsm:
+    #     DSM_cat = st.expander('DSM')
+    #     with DSM_cat:
+    #         fx.displayPDF(f'./data/DSM_5.pdf')
+
+
 
     DX = st.expander('Físicos, psiquiátricos, personalidad, psicosocial')
     with DX:
@@ -617,7 +657,7 @@ with form_tx:
 
 
         if manejo == 'Hospitalario':
-            indicaciones = f'1. Ingreso a unidades.{renglon}2. Condición: .{renglon}3. Diagnóstico: {lista_problemas}.{renglon}4. Pronóstico: {pronostico}.{renglon}5. MEDICAMENTOS:{renglon}-{renglon}6. Laboratoriales: {labs_nvos}.{renglon}7. SVPT,CGE, Vigilancia continua y reporte de eventualidades.{renglon}8. valoración por medicina general.'
+            indicaciones = f'1. Ingreso a  con brazalete .{renglon}2. Condición: .{renglon}3. Diagnóstico: {lista_problemas}.{renglon}4. Pronóstico: {pronostico}.{renglon}5. MEDICAMENTOS:{renglon}-{renglon}6. Laboratoriales: {labs_nvos}.{renglon}7. SVPT,CGE, Vigilancia continua y reporte de eventualidades.{renglon}8. valoración por medicina general.'
         tx = st.text_area('',indicaciones,height=200,key=3483169)
         #============================ ANALISIS
     st.header('Análisis')
@@ -896,11 +936,11 @@ css_code = '<style>ul{\
   background-color: #111;}.active {\
   background-color: #04AA6D;}</style>'
 
-escala_expander = st.expander('Visor de escalas')
-with escala_expander:
+# escala_expander = st.expander('Visor de escalas')
+# with escala_expander:
 
-    escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
-    fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+#     escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
+#     fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
 
 
 
