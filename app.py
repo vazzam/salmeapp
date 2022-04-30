@@ -71,13 +71,13 @@ with st.sidebar:
     with dsm_spec:
         fx.displayPDF(f'./data/especificadores.pdf')
 
-    dsm_pdf_1 = st.expander('Criterios DSM 5 Tomo 1')
-    with dsm_pdf_1:
-        fx.displayPDF(f'./data/DSM_5_1.pdf')
+    # dsm_pdf_1 = st.expander('Criterios DSM 5 Tomo 1')
+    # with dsm_pdf_1:
+    #     fx.displayPDF(f'./data/DSM_5_1.pdf')
 
-    dsm_pdf_2 = st.expander('Criterios DSM 5 Tomo 2')
-    with dsm_pdf_2:
-        fx.displayPDF(f'./data/DSM_5_2.pdf')
+    # dsm_pdf_2 = st.expander('Criterios DSM 5 Tomo 2')
+    # with dsm_pdf_2:
+    #     fx.displayPDF(f'./data/DSM_5_2.pdf')
 
     escalas_expander = st.expander('Clinimetrías')
     with escalas_expander:
