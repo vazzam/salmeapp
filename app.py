@@ -178,7 +178,7 @@ with main_form:
 
 
     with col9:
-        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}')#st.text_input('Edad: ', '0')
+        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}', disabled=True)#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
         edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
@@ -218,7 +218,7 @@ with main_form:
         dom_asentamiento = st.text_input('Nombre del asentamiento:')
 
     with col19:
-        dom_edo = st.selectbox('Entidad federativa:', df['admin_name'].unique(), key=4412)
+        dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
 
     with col20:
         dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
@@ -300,7 +300,7 @@ with main_form:
             ahf_madre = st.selectbox('Madre', ['viva','finada','desconocida'])
 
         with edad_padres:
-            ahf_edad_padre = st.text_input('edad')
+            ahf_edad_padre = st.text_input('edad',key=123)
             ahf_edad_madre = st.text_input('edad',key='edad_padre')
         with col34:
             ahf_padre_ant = st.text_input('Antecedentes: ', 'sin antecedentes de relevancia',key='ant_padre')
@@ -318,9 +318,16 @@ with main_form:
 
 
         st.subheader('Antecedentes Familiares Psiquiátricos')
-        ahf_psiquiatricos = st.text_area('','Negados',key='fam_psiq', height=30)
-        padre_merge = f'Padre {ahf_padre} de {ahf_edad_padre} años: {ahf_padre_ant}'
-        madre_merge = f'Madre {ahf_madre} de {ahf_edad_madre} años: {ahf_madre_ant}'
+        ahf_psiquiatricos = st.text_area('','Negados',key='fam_psiq', height=30)    
+        if ahf_edad_padre == '':
+            padre_merge = f'Padre {ahf_padre} de edad no referida: {ahf_padre_ant}'
+        else:
+            padre_merge = f'Padre {ahf_padre} de {ahf_edad_padre} años: {ahf_padre_ant}'
+        if ahf_edad_madre == '':
+            madre_merge = f'Madre {ahf_madre} de edad no especificada: {ahf_madre_ant}'
+        else:
+            madre_merge = f'Madre {ahf_madre} de {ahf_edad_madre} años: {ahf_madre_ant}'
+
         padres_merge = f'{padre_merge}. {renglon}{madre_merge}'
         ahf_merge = f'{padres_merge}. {renglon}Hermanos: {ahf_hermanos}.{renglon}Hijos: {ahf_hijos}.\
                     {renglon}Otros:{ahf_otros}.{renglon}ANTECEDENTES FAMILIARES PSIQUIÁTRICOS:{renglon}{ahf_psiquiatricos}.'
