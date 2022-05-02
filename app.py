@@ -178,7 +178,7 @@ with main_form:
 
 
     with col9:
-        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}', disabled=True)#st.text_input('Edad: ', '0')
+        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}')#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
         edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
