@@ -173,6 +173,9 @@ with main_form:
     with col8:
 
         f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento')
+        f_nacimiento = st.text_input('Fecha de nacimiento: ',max_chars=6,key=6511)
+        f_nacimiento = datetime.strptime(f_nacimiento[:2]+'/'+f_nacimiento[2:4]+'/'+f_nacimiento[4:],'%d/%m/%y')
+        # datetime.strptime(date_time_str, '%d/%m/%y')
         f_nacimiento = f_nacimiento.strftime("%d%m%Y")
 
 
@@ -589,6 +592,7 @@ with main_form:
         ef_alteraciones = f'{alt_cabeza}{renglon}{alt_cuello}{renglon}{alt_cardio}{renglon}{alt_abdomen}{renglon}{alt_extremidades_sup}{renglon}{alt_extremidades_inf}{renglon}{alt_genitales}'
     st.write()
     st.header('Examen mental')
+    em_options = ['Normal','Depresión', 'Ansiedad', 'Mania', 'Psicosis']
     em_template = f'Encuentro a {nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones\
         psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {nombre.title()}), afecto eutímico. Discurso espontáneo, fluído,\
         coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes,\
