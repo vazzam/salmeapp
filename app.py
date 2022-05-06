@@ -172,15 +172,18 @@ with main_form:
 
     with col8:
 
-        # f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento')
-        f_nacimiento = st.text_input('Fecha de nacimiento: ',max_chars=6,key=6511)
+        f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento')
+        f_nacimiento = f_nacimiento.strftime("%d%m%Y")
         # datetime.strptime(date_time_str, '%d/%m/%y')
         # datetime.strptime(date_time_str, '%d/%m/%y')
-        if f_nacimiento != '':
-            f_nacimiento = f_nacimiento[:2]+'/'+f_nacimiento[2:4]+'/'+f_nacimiento[4:]
-            f_nacimiento = datetime.strptime(f_nacimiento,'%d/%m/%y')
-            f_nacimiento = f_nacimiento.strftime("%d%m%Y")
-            f_nacimiento = f_nacimiento.strftime("%d%m%Y")
+
+        # f_nacimiento = st.text_input('Fecha de nacimiento: ',max_chars=6,key=6511)
+
+        # if f_nacimiento != '':
+        #     f_nacimiento = f_nacimiento[:2]+'/'+f_nacimiento[2:4]+'/'+f_nacimiento[4:]
+        #     f_nacimiento = datetime.strptime(f_nacimiento,'%d/%m/%y')
+        #     f_nacimiento = f_nacimiento.strftime("%d%m%Y")
+        #     f_nacimiento = f_nacimiento.strftime("%d%m%Y")
 
 
     with col9:
