@@ -20,6 +20,7 @@ import sys
 import subprocess
 import webbrowser
 import functions as fx
+import ex_mental as em
 import random
 import urllib.request
 
@@ -66,6 +67,232 @@ margin-left: -600px;
 unsafe_allow_html=True
 )
 
+# Function to calculate age from birthdate.
+def calculate_age(born):
+    today = datetime.now()
+    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+# if 'curp' not in st.session_state:
+#     st.session_state.curp = ''
+
+# if 'no_expediente' not in st.session_state:
+#     st.session_state.no_expediente = ''
+
+# if 'date' not in st.session_state:
+#     st.session_state.date = ''
+
+# if 'nombre' not in st.session_state:
+#     st.session_state.nombre = ''
+
+# if 'apellido_paterno' not in st.session_state:
+#     st.session_state.apellido_paterno = ''
+
+# if 'apellido_materno' not in st.session_state:
+#     st.session_state.apellido_materno = ''
+
+# if 'f_nacimiento' not in st.session_state:
+#     st.session_state.f_nacimiento = time.strptime('1988/01/01', '%Y/%m/%d')
+
+# if 'str(edad)' not in st.session_state:
+#     st.session_state.edad = ''
+
+# if 'hombre' not in st.session_state:
+#     st.session_state.hombre = ''
+
+# if 'mujer' not in st.session_state:
+#     st.session_state.mujer = ''
+
+# if 'int(edad)' not in st.session_state:
+#     st.session_state.edad = ''
+
+# if 'edo_nac' not in st.session_state:
+#     st.session_state.edo_nac = ''
+
+# if 'tipo_vialidad' not in st.session_state:
+#     st.session_state.tipo_vialidad = ''
+
+# if 'dom_vialidad' not in st.session_state:
+#     st.session_state.dom_vialidad = ''
+
+# if 'dom_no_ext' not in st.session_state:
+#     st.session_state.dom_no_ext = ''
+
+# if 'dom_no_int' not in st.session_state:
+#     st.session_state.dom_no_int = ''
+
+# if 'cp' not in st.session_state:
+#     st.session_state.cp = ''
+
+# if 'dom_tipo_asentamiento' not in st.session_state:
+#     st.session_state.dom_tipo_asentamiento = ''
+
+# if 'dom_asentamiento' not in st.session_state:
+#     st.session_state.dom_asentamiento = ''
+
+# if 'dom_cd' not in st.session_state:
+#     st.session_state.dom_cd = ''
+
+# if 'dom_edo' not in st.session_state:
+#     st.session_state.dom_edo = ''
+
+# if 'edo_civil' not in st.session_state:
+#     st.session_state.edo_civil = ''
+
+# if 'religion' not in st.session_state:
+#     st.session_state.religion = ''
+
+# if 'ocupacion' not in st.session_state:
+#     st.session_state.ocupacion = ''
+
+# if 'inst_ref' not in st.session_state:
+#     st.session_state.inst_ref = ''
+
+# if 'responsable_nombre' not in st.session_state:
+#     st.session_state.responsable_nombre = ''
+
+# if 'responsable_tel' not in st.session_state:
+#     st.session_state.responsable_tel = ''
+
+# if 'responsable_parentesco' not in st.session_state:
+#     st.session_state.responsable_parentesco = ''
+
+# if 'mc' not in st.session_state:
+#     st.session_state.mc = ''
+
+# if 'pepa' not in st.session_state:
+#     st.session_state.pepa = ''
+
+# if 'ahf_merge'not in st.session_state:
+#     st.session_state.ahf_merge = ''
+
+# if 'app_merge'not in st.session_state:
+#     st.session_state.app_merge = ''
+
+# if 'apnp_merge'not in st.session_state:
+#     st.session_state.apnp_merge = ''
+    
+# if 'ipas'not in st.session_state:
+#     st.session_state.ipas = ''
+    
+# if 'sustancias_merge'not in st.session_state:
+#     st.session_state.sustancias_merge = ''
+    
+# if 'labs_merge'not in st.session_state:
+#     st.session_state.labs_merge = ''
+    
+# if 'ef_merge'not in st.session_state:
+#     st.session_state.ef_merge = ''
+    
+# if 'peso' not in st.session_state:
+#     st.session_state.peso = ''
+
+# if 'talla' not in st.session_state:
+#     st.session_state.talla = ''
+
+# if 'imc' not in st.session_state:
+#     st.session_state.imc = ''
+
+# if 'ta' not in st.session_state:
+#     st.session_state.ta = ''
+
+# if 'fc' not in st.session_state:
+#     st.session_state.fc = ''
+
+# if 'fr' not in st.session_state:
+#     st.session_state.fr = ''
+
+# if 'temp' not in st.session_state:
+#     st.session_state.temp = ''
+
+# if 'ef_alteraciones' not in st.session_state:
+#     st.session_state.ef_alteraciones = ''
+
+# if 'examen_mental' not in st.session_state:
+#     st.session_state.examen_mental = ''
+
+# if 'dxs' not in st.session_state:
+#     st.session_state.dxs = ''
+
+# if 'tx' not in st.session_state:
+#     st.session_state.tx = ''
+
+# if 'pronostico' not in st.session_state:
+#     st.session_state.pronostico = ''
+
+# if 'clinimetria' not in st.session_state:
+#     st.session_state.clinimetria = ''
+
+# if 'analisis' not in st.session_state:
+#     st.session_state.analisis = ''
+
+# if 'nombre_completo' not in st.session_state:
+#     st.session_state.nombre_completo = ''
+
+# if 'no_expediente' not in st.session_state:
+#     st.session_state.no_expediente = ''
+
+# if 'date' not in st.session_state:
+#     st.session_state.date = ''
+
+# if 'mc' not in st.session_state:
+#     st.session_state.mc = ''
+
+# if 'pepa' not in st.session_state:
+#     st.session_state.pepa = ''
+
+# if 'ahf_merge' not in st.session_state:
+#     st.session_state.ahf_merge = ''
+
+# if 'apnp_merge' not in st.session_state:
+#     st.session_state.apnp_merge = ''
+
+# if 'app_merge' not in st.session_state:
+#     st.session_state.app_merge = ''
+
+# if 'ipas' not in st.session_state:
+#     st.session_state.ipas = ''
+
+# if 'sustancias_merge' not in st.session_state:
+#     st.session_state.sustancias_merge = ''
+
+# if 'alteraciones_ingreso' not in st.session_state:
+#     st.session_state.alteraciones_ingreso = ''
+
+# if 'examen_mental' not in st.session_state:
+#     st.session_state.examen_mental = ''
+
+# if 'analisis' not in st.session_state:
+#     st.session_state.analisis = ''
+
+# if 'labs_merge' not in st.session_state:
+#     st.session_state.labs_merge = ''
+
+# if 'str_dx' not in st.session_state:
+#     st.session_state.str_dx = ''
+
+# if 'clinimetria' not in st.session_state:
+#     st.session_state.clinimetria = ''
+
+# if 'pronostico' not in st.session_state:
+#     st.session_state.pronostico = ''
+
+# if 'tx' not in st.session_state:
+#     st.session_state.tx = ''
+
+# if 'aviso_alergias' not in st.session_state:
+#     st.session_state.aviso_alergias = ''
+
+# if 'aviso_alergias' not in st.session_state:
+#     st.session_state.aviso_alergias = ''
+
+# if 'aviso_alergias' not in st.session_state:
+#     st.session_state.aviso_alergias = ''
+
+# if 'guia' not in st.session_state:
+#     st.session_state.guia = ''
+# Function to calculate age from birthdate.
+
+
 with st.sidebar:
     dsm_spec = st.expander('Especificadores DSM')
     with dsm_spec:
@@ -84,49 +311,6 @@ with st.sidebar:
         escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
         fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
 
-# st.sidebar.write(f'<p style="border-color: #FF4B4B;border-bottom-style: solid;border-radius: 4px;\
-# border: 2px solid none;padding: 0px 10px 0px; margin: -75px; color: white; font-size: 45px; \
-# text-style: bold;text-align:center; text-style: bold;">Apartados</p>', unsafe_allow_html=True)\
-
-# st.sidebar.write('<html><head><style>\
-# ul {list-style-type: none;\
-#   margin: -5px;\
-#   padding: -10px;\
-#   overflow: hidden;\
-#   background-color: rgb(19, 23, 32);\
-# }\
-# li {float: center;}li a {display: block;\
-#   font-size:15px;\
-#   text-align: left;\
-#   padding: 5px 5px 5px 10px;\
-#   text-decoration: none;\
-# }li a:hover:not(.active) {\
-#   background-color: #FF4B4B;\
-#   text-decoration:none\
-# }.active {\
-#   background-color: #04AA6D;\
-# }\
-# </style>\
-# </head>\
-# <body><ul>\
-# <li><a href="#ficha-de-identificaci-n"><b style=color:white;>Ficha de identificación</b></a></li>\
-# <li><a href="#motivo-de-consulta"><b style=color:white;>Motivo de consulta</b></a></li>\
-# <li><a href="#padecimiento-actual"><b style=color:white;>Padecimiento actual</b></a></li>\
-# <li><a href="#antecedentes-heredo-familiares"><b style=color:white;>Antecedentes heredofamiliares</b></a></li>\
-# <li><a href="#antecedentes-personales-patol-gicos"><b style=color:white;>Antecedentes personales patológicos</b></a></li>\
-# <li><a href="#antecedentes-personales-no-patol-gicos"><b style=color:white;>Antecedentes personales no patológicos</b></a></li>\
-# <li><a href="#consumo-de-sustancias"><b style=color:white;>Consumo de sustancias</b></a></li>\
-# <li><a href="#resultados-de-estudios-de-laboratorio-y-gabinete"><b style=color:white;>Laboratoriales</b></a></li>\
-# <li><a href="#exploraci-n-f-sica"><b style=color:white;>Exploración física</b></a></li>\
-# <li><a href="#examen-mental"><b style=color:white;>Examen mental</b></a></li>\
-# <li><a href="#diagn-sticos"><b style=color:white;>Diagnósticos</b></a></li>\
-# <li><a href="#pron-stico-y-clinimetr-a"><b style=color:white;>Pronóstico y clinimetría</b></a></li>\
-# <li><a href="#visualizar-escalas"><b style=color:orange;>Escalas</b></a></li>\
-# <li><a href="#tratamiento"><b style=color:white;>Tratamiento</b></a></li>\
-# <li><a href="#an-lisis"><b style=color:white;>Análisis</b></a></li>\
-# </ul></body>\
-# </html>',unsafe_allow_html=True)
-
 main_col1, main_col2 = st.columns([0.05,0.95])
 with main_col1:
     main_img = st.image('brain.png',width=50)
@@ -135,31 +319,31 @@ with main_col2:
 
 main_form = st.form('main_form')
 with main_form:
-    st.header("Ficha de identificación")
+    ("Ficha de identificación")
     col1,col2,col3 = st.columns([0.6,0.2,0.2])
 
     with col1:
-        curp = st.text_input("CURP: ")
+        st.session_state.curp = st.text_input("CURP: ")
     with col2:
-        no_expediente = st.text_input("No. expediente: ")
+        st.session_state.no_expediente = st.text_input("No. expediente: ")
     with col3:
         #format = 'DD MMM, YYYY'
-        date = st.text_input("Fecha: ",date)
+        st.session_state.date = st.text_input("Fecha: ",date)
         #date_str = date.strftime("%d/%m/%Y")
 
     col4, col5, col6, col7 = st.columns([0.3,0.25,0.25,0.2])
     with col4:
-        nombre = st.text_input('Nombre(s): ')
+        st.session_state.nombre = st.text_input('Nombre(s): ')
     with col5:
-        apellido_paterno = st.text_input('Apellido paterno: ')
+        st.session_state.apellido_paterno = st.text_input('Apellido paterno: ')
     with col6:
-        apellido_materno = st.text_input('Apellido materno: ')
-        nombre_completo = f'{nombre} {apellido_paterno} {apellido_materno}'
+        st.session_state.apellido_materno = st.text_input('Apellido materno: ')
+        nombre_completo = f'{st.session_state.nombre} {st.session_state.apellido_paterno} {st.session_state.apellido_materno}'
 
     with col7:
-        sexo = st.radio('Sexo:', ['Hombre','Mujer'])
+        st.session_state.sexo = st.radio('Sexo:', ['Hombre','Mujer'])
         binary_sexo = 0
-        if sexo == 'Hombre':
+        if st.session_state.sexo == 'Hombre':
             mujer = 'Off'
             hombre = 'Yes'
         else:
@@ -172,8 +356,9 @@ with main_form:
 
     with col8:
 
-        f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento')
-        f_nacimiento = f_nacimiento.strftime("%d%m%Y")
+        st.session_state.f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento_2')
+        temp_date = st.session_state.f_nacimiento
+        st.session_state.f_nacimiento = st.session_state.f_nacimiento.strftime("%d%m%Y")
         # datetime.strptime(date_time_str, '%d/%m/%y')
         # datetime.strptime(date_time_str, '%d/%m/%y')
 
@@ -187,13 +372,14 @@ with main_form:
 
 
     with col9:
-        edad = st.text_input('Edad:',f'{fx.calculateAge(f_nacimiento)+1}')#st.text_input('Edad: ', '0')
+        # st.write(calculate_age(temp_date))
+        st.session_state.edad = st.text_input('Edad:',f'{fx.calculate_age(temp_date)}', disabled=True)#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
-        edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
+        st.session_state.edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
 
     with col11:
-        ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
+        st.session_state.ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
 
 #     #===================== DOMICILSemaforización y tiempo de espera estimado *
 # Rojo (emergencia) tiempo de espera INMEDIATO
@@ -204,33 +390,33 @@ with main_form:
     col12, col13, col14,col15, col16 = st.columns([0.20,0.35,0.10,0.10,0.15])
 
     with col12:
-        tipo_vialidad = st.selectbox('Tipo de vialidad: ', ['Calle', 'Andador', 'Avenida', 'Privada', 'Carretera', 'Brecha','Circuito'])
+        st.session_state.tipo_vialidad = st.selectbox('Tipo de vialidad: ', ['Calle', 'Andador', 'Avenida', 'Privada', 'Carretera', 'Brecha','Circuito'])
 
     with col13:
-        dom_vialidad = st.text_input('Nombre de vialidad:')
+        st.session_state.dom_vialidad = st.text_input('Nombre de vialidad:')
 
     with col14:
-        dom_no_ext = st.text_input('Número exterior:')
+        st.session_state.dom_no_ext = st.text_input('Número exterior:')
 
     with col15:
-        dom_no_int = st.text_input('Interior:')
+        st.session_state.dom_no_int = st.text_input('Interior:')
 
     with col16:
-        cp = st.text_input('Código postal:')  
+        st.session_state.cp = st.text_input('Código postal:')  
 
     col17, col18, col19,col20= st.columns([0.20,0.30,0.25,0.25])
 
     with col17:
-        dom_tipo_asentamiento = st.selectbox('Tipo de asaentamiento: ', ['Colonia', 'Fraccionamiento', 'Coto', 'Privada', 'Ranchería', 'Comunidad', 'Pueblo','Villa'])
+        st.session_state.dom_tipo_asentamiento = st.selectbox('Tipo de asaentamiento: ', ['Colonia', 'Fraccionamiento', 'Coto', 'Privada', 'Ranchería', 'Comunidad', 'Pueblo','Villa'])
 
     with col18:
-        dom_asentamiento = st.text_input('Nombre del asentamiento:')
+        st.session_state.dom_asentamiento = st.text_input('Nombre del asentamiento:')
 
     with col19:
-        dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
+        st.session_state.dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
 
     with col20:
-        dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
+        st.session_state.dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
 
 
     col21, col22, col23,col24, col25 = st.columns([0.15,0.15,0.20,0.30,0.15])
@@ -239,59 +425,59 @@ with main_form:
 
 
         escolaridad_arr = ['Ninguna', 'Primaria', 'Secundaria', 'Bachillerato', 'Licenciatura', 'Posgrado']
-        escolaridad = st.selectbox('Escolaridad: ', escolaridad_arr)
+        st.session_state.escolaridad = st.selectbox('Escolaridad: ', escolaridad_arr)
 
 
     with col22:
-        edo_civil = st.selectbox('Estado civil: ', ['Soltero', 'Casado', 'Unión libre','Divorciado', 'Viudo', 'Separado'])
+        st.session_state.edo_civil = st.selectbox('Estado civil: ', ['Soltero', 'Casado', 'Unión libre','Divorciado', 'Viudo', 'Separado'])
 
     with col23:
-        religion = st.text_input('Religión:')
+        st.session_state.religion = st.text_input('Religión:')
 
     with col24:
-        ocupacion = st.text_input('Ocupación habitual:')
+        st.session_state.ocupacion = st.text_input('Ocupación habitual:')
 
     with col25:
         trabajo_arr = ['Empleado', 'Desempleado', 'Subempleado']
 
-        trabajo = st.selectbox('Estatus laboral actual: ', trabajo_arr)
+        st.session_state.trabajo = st.selectbox('Estatus laboral actual: ', trabajo_arr)
 
     col26, col27, col28,col29= st.columns([0.20,0.30,0.05,0.25])
 
     with col26:
         indigena_options = ['indigena_no','indigena_si']
         indigena_arr = ['No', 'Sí']
-        indigena = st.selectbox('¿Se considera indígena?: ', indigena_arr)
+        st.session_state.indigena = st.selectbox('¿Se considera indígena?: ', indigena_arr)
 
     with col27:
         ss_arr = ['NINGUNA', 
             'IMSS', 'ISSSTE', 'SEDENA', 'SEMAR', 'IMSS-PROSPERA', 'PEMEX', 
             'SEGURO POPULAR', 'OTRA', 'SE IGNORA', 'NO ESPECIFICADO']
-        seg_social = st.selectbox('Afiliación a servicios de salud: ', ss_arr)
+        st.session_state.seg_social = st.selectbox('Afiliación a servicios de salud: ', ss_arr)
 
     with col28:
         referido_options = ['referido_no','referido_si']
         referido_arr = ['No', 'Sí']
-        referido = st.radio('Referido:', referido_arr)
+        st.session_state.referido = st.radio('Referido:', referido_arr)
 
     with col29:
-        inst_ref = st.text_input('Institución que refiere: ')
+        st.session_state.inst_ref = st.text_input('Institución que refiere: ')
 
     col30, col31, col32 = st.columns([0.40,0.30,0.30])
     with col30:
-        responsable_nombre = st.text_input('Nombre del responsable:')
+        st.session_state.responsable_nombre = st.text_input('Nombre del responsable:')
 
     with col31:
-        responsable_tel = st.text_input('Teléfono:')
+        st.session_state.responsable_tel = st.text_input('Teléfono:')
 
     with col32:
-        responsable_parentesco = st.text_input('Parentesco:')
+        st.session_state.responsable_parentesco = st.text_input('Parentesco:')
 
 
     st.header('Motivo de consulta')
     mc_consulta = st.expander('La razón por la que acuden a valoración')
     with mc_consulta:   
-        mc = st.text_area('',height=120)  
+        st.session_state.mc = st.text_area('',height=120)  
 
     st.header('Padecimiento actual')
     padecimiento = st.expander('Inicio, curso, tendencia, desencadenantes, agravantes, síntomas clave, síntomas actuales')
@@ -599,14 +785,18 @@ with main_form:
     st.write()
     st.header('Examen mental')
     em_options = ['Normal','Depresión', 'Ansiedad', 'Mania', 'Psicosis']
-    em_template = f'Encuentro a {nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones\
-        psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {nombre.title()}), afecto eutímico. Discurso espontáneo, fluído,\
-        coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes,\
-        suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
+    # em_template = f'Encuentro a {st.session_state.nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones\
+    #     psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {st.session_state.nombre.title()}), afecto eutímico. Discurso espontáneo, fluído,\
+    #     coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes,\
+    #     suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
 
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
-        examen_mental = st.text_area('', key='ex_mental')
+        em_template = st.selectbox('Seleccionar plantilla', em_options, key=1587)
+        # st.write(f'{em.em(em_template,st.session_state.nombre.title())}')
+        sel_em = em.em(em_template,st.session_state.nombre.title())
+        examen_mental = st.text_area('Lista de plantillas de examen mental:',f'{str(sel_em)}',height=250)
+    
 
     main_button = st.form_submit_button('Guardar historia clínica')
     if main_button:
@@ -748,38 +938,38 @@ if app_alergias != '':
 
 
 data_dict = {
-    "1 CURP":curp,
-    "expediente":no_expediente,
-    "fecha":date,
-    "Nombres":nombre,
-    "Primer apellido":apellido_paterno,
-    "Segundo apellido":apellido_materno,
-    "f_nacimiento":f_nacimiento,
-    "Años":str(edad),
+    "1 CURP":st.session_state.curp,
+    "expediente":st.session_state.no_expediente,
+    "fecha":st.session_state.date,
+    "Nombres":st.session_state.nombre,
+    "Primer apellido":st.session_state.apellido_paterno,
+    "Segundo apellido":st.session_state.apellido_materno,
+    "f_nacimiento":st.session_state.f_nacimiento,
+    "Años":str(st.session_state.edad),
     "Hombre":hombre,
     "Mujer": mujer,
-    'edad': int(edad),
-    'edo_nac': edo_nac,
-    'tipo_vialidad': tipo_vialidad,
-    'nombre_vialidad': dom_vialidad,
-    'no_ext': dom_no_ext,
-    'no_int': dom_no_int,
-    'cp': cp,
-    'tipo_asentamiento': dom_tipo_asentamiento,
-    'nombre_asentamiento': dom_asentamiento,
-    'municipio': dom_cd,
-    'edo_dom': dom_edo,
+    'edad': int(st.session_state.edad),
+    'edo_nac': st.session_state.edo_nac,
+    'tipo_vialidad': st.session_state.tipo_vialidad,
+    'nombre_vialidad': st.session_state.dom_vialidad,
+    'no_ext': st.session_state.dom_no_ext,
+    'no_int': st.session_state.dom_no_int,
+    'cp': st.session_state.cp,
+    'tipo_asentamiento': st.session_state.dom_tipo_asentamiento,
+    'nombre_asentamiento': st.session_state.dom_asentamiento,
+    'municipio': st.session_state.dom_cd,
+    'edo_dom': st.session_state.dom_edo,
     'Ninguna': 'Off',
     'Primaria': 'Off',
     'Secundaria': 'Off',
     'Bachillerato': 'Off',
     'Licenciatura': 'Off',
     'Posgrado': 'Off',
-    'edo_civil': edo_civil,
-    'religion': religion,
+    'edo_civil': st.session_state.edo_civil,
+    'religion': st.session_state.religion,
     'indigena_si': 'Off',
     'indigena_no': 'Off',
-    'ocupacion': ocupacion,
+    'ocupacion': st.session_state.ocupacion,
     'NINGUNA': 'Off',
     'IMSS': 'Off',
     'ISSSTE': 'Off',
@@ -796,11 +986,11 @@ data_dict = {
     'Empleado': 'Off',
     'Desempleado': 'Off',
     'Subempleado': 'Off',
-    'institucion': inst_ref,
-    'responsable': responsable_nombre,
-    'responsable_tel': responsable_tel,
-    'responsable_parentesco': responsable_parentesco,
-    'mc': mc,
+    'institucion': st.session_state.inst_ref,
+    'responsable': st.session_state.responsable_nombre,
+    'responsable_tel': st.session_state.responsable_tel,
+    'responsable_parentesco': st.session_state.responsable_parentesco,
+    'mc': st.session_state.mc,
     'pa': pepa,
     'ahf': ahf_merge,
     'ap': app_merge,
@@ -839,11 +1029,11 @@ data_dict = {
     'clinimetria': clinimetria,
     'analisis': analisis,
     'nombre': nombre_completo,
-    'expediente15': no_expediente,
+    'expediente15': st.session_state.no_expediente,
     'fecha16': date,
     'ef': f'{ef_merge} | FC: {fc} lpm, FR: {fr} rpm, TA: {ta} mmHg, Temperatura: {temp} °C | Peso: {peso} kg, Talla: {talla} cm, IMC: {imc}',
-    'presentacion': f'{nombre_completo}, {sexo} de {edad} años, nacido el {f_nacimiento}, oriundo y residente de {ciudades}, {edo_nac}. {edo_civil}, de religión {religion}, con estudios de {escolaridad} quien se desempeña como {ocupacion} y actualmente esta {trabajo}.',
-    'mc17': mc,
+    'presentacion': f'{nombre_completo}, {st.session_state.sexo} de {st.session_state.edad} años, nacido el {st.session_state.f_nacimiento}, oriundo y residente de {st.session_state.ciudades}, {st.session_state.edo_nac}. {st.session_state.edo_civil}, de religión {st.session_state.religion}, con estudios de {st.session_state.escolaridad} quien se desempeña como {st.session_state.ocupacion} y actualmente esta {st.session_state.trabajo}.',
+    'mc17': st.session_state.mc,
     'pa18': pepa,
     'ahf19': ahf_merge,
     'apnp20': apnp_merge,
@@ -868,23 +1058,23 @@ data_dict = {
 
 #================== ESCOLARIDAD OPCIONES
 for i in range(len(escolaridad_arr)):
-    if escolaridad == escolaridad_arr[i]:
+    if st.session_state.escolaridad == escolaridad_arr[i]:
         data_dict[escolaridad_arr[i]] = 'Yes'
 #================== INDIGENA OPCIONES
 for j in range(len(indigena_arr)):
-    if indigena == indigena_arr[j]:
+    if st.session_state.indigena == indigena_arr[j]:
         data_dict[indigena_options[j]] = 'Yes'
 #==================== SS OPCIONES
 for i in range(len(ss_arr)):
-    if seg_social == ss_arr[i]:
+    if st.session_state.seg_social == ss_arr[i]:
         data_dict[ss_arr[i]] = 'Yes'
 #==================== REFERIDO OPCIONES
 for j in range(len(referido_arr)):
-    if referido == referido_arr[j]:
+    if st.session_state.referido == referido_arr[j]:
         data_dict[referido_options[j]] = 'Yes'
 #===================== TRABAJO OPCIONES
 for i in range(len(trabajo_arr)):
-    if trabajo == trabajo_arr[i]:
+    if st.session_state.trabajo == trabajo_arr[i]:
         data_dict[trabajo_arr[i]] = 'Yes'
 
 #===========================================
