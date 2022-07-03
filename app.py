@@ -35,6 +35,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+rand_ta = f'{random.randint(100,130)}/{random.randint(66,78)}'
+
 escalas = ['RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf', 'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf', 'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf', 'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf']
 gpc = [
 'SSA-222-09 Diagnostico y tratamiento de la esquizofrenia', 'IMSS 170-09 Diagnostico y tratamiento del trastorno bipolar',
@@ -193,8 +195,8 @@ def calculate_age(born):
 # if 'imc' not in st.session_state:
 #     st.session_state.imc = ''
 
-# if 'ta' not in st.session_state:
-#     st.session_state.ta = ''
+if 'ta' not in st.session_state:
+    st.session_state.ta = ''
 
 # if 'fc' not in st.session_state:
 #     st.session_state.fc = ''
@@ -723,7 +725,14 @@ with antecedentes_form:
                 talla_mts = talla/100
                 imc = peso/(talla_mts*talla_mts)
                 imc = "{:.2f}".format(round(imc, 2))
-            ta = st.text_input('Presión arterial:',f'{random.randint(100,130)}/{random.randint(66,78)}',key=87)
+
+            if st.session_state.ta == '':
+                # st.write('empty')
+
+                st.session_state.ta = st.text_input('Presión arterial:',rand_ta,key=87)
+            else:
+                # st.write('not empty')
+                st.session_state.ta  = st.text_input('Presión arterial:',st.session_state.ta,key=8747)
         with col75:
             fc = st.text_input('Frecuencia cardiaca:',f'{random.randint(68,88)}',key=88)
         with col76:
@@ -818,6 +827,8 @@ with antecedentes_form:
 
     antecedentes_form_button = st.form_submit_button('Guardar historia clínica')
     if antecedentes_form_button:
+        # st.write(f'Aletaroria: {rand_ta}')
+        # st.write(st.session_state.ta)
         st.success('Se han guardado los cambios')
 
 # dsm_form = st.form('dsm_form')
@@ -874,6 +885,7 @@ with form_tx:
     with expander_tx:
 
         indicaciones = ''
+        tx_med = ''
 
         try:
             lista_problemas = lista_problemas[0]
@@ -883,7 +895,20 @@ with form_tx:
 
         if manejo == 'Hospitalario':
             indicaciones = f'1. Ingreso a  con brazalete .{renglon}2. Condición: .{renglon}3. Diagnóstico: {lista_problemas}.{renglon}4. Pronóstico: {pronostico}.{renglon}5. MEDICAMENTOS:{renglon}-{renglon}6. Laboratoriales: {labs_nvos}.{renglon}7. SVPT,CGE, Vigilancia continua y reporte de eventualidades.{renglon}8. valoración por medicina general.'
+        
+            tx_med = indicaciones.splitlines()
+            #find string into string in list
+            lab_position = 0
+            for i in tx_med:
+                # print(i)
+                if '6.' in i:
+                    #find list position
+                    lab_position =  tx_med.index(i)
+                    # print(lab_position)
+                    break
+            tx_med = tx_med[5:lab_position]
         tx = st.text_area('',indicaciones,height=200,key=3483169)
+        
         #============================ ANALISIS
     st.header('Análisis')
     exp_analisis = st.expander('Análisis del caso')
@@ -1020,7 +1045,7 @@ data_dict = {
     'peso': f'{peso} kg',
     'talla': f'{talla} cm',
     'imc': imc,
-    'ta': ta,
+    'ta': st.session_state.ta,
     'fc': f'{fc} lpm',
     'fr': f'{fr} rpm',
     'temp': f'{temp} °C',
@@ -1043,13 +1068,14 @@ data_dict = {
     'em': examen_mental,
     'dx': dxs,
     'tx': tx,
+    'tx_med': tx_med,
     'pronostico': pronostico,
     'clinimetria': clinimetria,
     'analisis': analisis,
     'nombre': nombre_completo,
     'expediente15': st.session_state.no_expediente,
     'fecha16': date,
-    'ef': f'{ef_merge} | FC: {fc} lpm, FR: {fr} rpm, TA: {ta} mmHg, Temperatura: {temp} °C | Peso: {peso} kg, Talla: {talla} cm, IMC: {imc}',
+    'ef': f'{ef_merge} | FC: {fc} lpm, FR: {fr} rpm, TA: {st.session_state.ta} mmHg, Temperatura: {temp} °C | Peso: {peso} kg, Talla: {talla} cm, IMC: {imc}\n',
     'presentacion': f'{nombre_completo}, {st.session_state.sexo} de {st.session_state.edad} años, nacido el {st.session_state.f_nacimiento}, oriundo y residente de {st.session_state.ciudades}, {st.session_state.edo_nac}. {st.session_state.edo_civil}, de religión {st.session_state.religion}, con estudios de {st.session_state.escolaridad} quien se desempeña como {st.session_state.ocupacion} y actualmente esta {st.session_state.trabajo}.',
     'ef23': alteraciones_ingreso,
     'alergia_1': aviso_alergias,
@@ -1059,6 +1085,7 @@ data_dict = {
 
 
     }
+
 
 #================== ESCOLARIDAD OPCIONES
 for i in range(len(escolaridad_arr)):
