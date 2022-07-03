@@ -21,6 +21,7 @@ import subprocess
 from os.path import exists
 import streamlit.components.v1 as components
 import requests
+from pyfiscal.generate import GenerateCURP
 
 s3_client = boto3.resource('s3')
 s3 = boto3.client('s3')
@@ -180,3 +181,30 @@ def pdf_embed(url):
 def calculate_age(born):
     today = datetime.now()
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+
+def calc_curp(nombres, a_paterno, a_materno, fecha_nacimiento, sexo, edo_nac):
+    edo_nac = edo_nac.upper()
+    #remove edo_nac accents
+    edo_nac = edo_nac.replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+    
+    if edo_nac == 'CIUDAD DE MEXICO':
+        edo_nac = 'DISTRITO FEDERAL'
+    if edo_nac == 'COAHUILA DE ZARAGOZA':
+        edo_nac = 'COAHUILA'
+    #string to date
+    fecha_nacimiento = datetime.strptime(fecha_nacimiento, '%d%m%Y')
+    #fecha_nacimiento into string
+    fecha_nacimiento=fecha_nacimiento.strftime("%d-%m-%Y")
+    kwargs = {
+	"complete_name": f"{nombres}",
+	"last_name": f"{a_paterno}",
+	"mother_last_name": f"{a_materno}",
+	"birth_date": f"{fecha_nacimiento}",
+	"gender": f"{sexo}", 
+	"city": f"{edo_nac}",
+	"state_code": ""
+}
+    curp = GenerateCURP(**kwargs)
+    data = curp.data
+    return data

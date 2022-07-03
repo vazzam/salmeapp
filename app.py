@@ -23,6 +23,7 @@ import functions as fx
 import ex_mental as em
 import random
 import urllib.request
+from pyfiscal.generate import GenerateRFC, GenerateCURP, GenerateNSS, GenericGeneration
 
 s3 = boto3.client('s3')
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
@@ -294,9 +295,9 @@ def calculate_age(born):
 
 
 with st.sidebar:
-    dsm_spec = st.expander('Especificadores DSM')
-    with dsm_spec:
-        fx.displayPDF(f'./data/especificadores.pdf')
+    # dsm_spec = st.expander('Especificadores DSM')
+    # with dsm_spec:
+    #     fx.displayPDF(f'./data/especificadores.pdf')
 
     # dsm_pdf_1 = st.expander('Criterios DSM 5 Tomo 1')
     # with dsm_pdf_1:
@@ -311,19 +312,21 @@ with st.sidebar:
         escala_selected = st.selectbox('Selecciona la escala:',escalas, key=342342)
         fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
 
+
+
 main_col1, main_col2 = st.columns([0.05,0.95])
 with main_col1:
     main_img = st.image('brain.png',width=50)
 with main_col2:
     "# Historia clínica de psiquiatría"
 
-main_form = st.form('main_form')
-with main_form:
+ficha_ID = st.form('ficha_ID')
+with ficha_ID:
     ("Ficha de identificación")
     col1,col2,col3 = st.columns([0.6,0.2,0.2])
 
     with col1:
-        st.session_state.curp = st.text_input("CURP: ")
+        st.session_state.curp = st.text_input("CURP: ", disabled=True)
     with col2:
         st.session_state.no_expediente = st.text_input("No. expediente: ")
     with col3:
@@ -341,14 +344,17 @@ with main_form:
         nombre_completo = f'{st.session_state.nombre} {st.session_state.apellido_paterno} {st.session_state.apellido_materno}'
 
     with col7:
+        genero = ''
         st.session_state.sexo = st.radio('Sexo:', ['Hombre','Mujer'])
         binary_sexo = 0
         if st.session_state.sexo == 'Hombre':
             mujer = 'Off'
             hombre = 'Yes'
-        else:
+            genero = 'H'
+        elif st.session_state.sexo == 'Mujer':
             mujer = 'Yes'
             hombre = 'Off'
+            genero = 'M'
             ## Range selector
 
 
@@ -356,19 +362,12 @@ with main_form:
 
     with col8:
 
-        st.session_state.f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento_2')
+        # st.session_state.f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento_2')
+        st.session_state.f_nacimiento = st.text_input('Fecha de nacimiento: ', '11/01/2000',key='f_nac')
+        st.session_state.f_nacimiento = datetime.strptime(st.session_state.f_nacimiento, '%d/%m/%Y')
         temp_date = st.session_state.f_nacimiento
         st.session_state.f_nacimiento = st.session_state.f_nacimiento.strftime("%d%m%Y")
-        # datetime.strptime(date_time_str, '%d/%m/%y')
-        # datetime.strptime(date_time_str, '%d/%m/%y')
 
-        # f_nacimiento = st.text_input('Fecha de nacimiento: ',max_chars=6,key=6511)
-
-        # if f_nacimiento != '':
-        #     f_nacimiento = f_nacimiento[:2]+'/'+f_nacimiento[2:4]+'/'+f_nacimiento[4:]
-        #     f_nacimiento = datetime.strptime(f_nacimiento,'%d/%m/%y')
-        #     f_nacimiento = f_nacimiento.strftime("%d%m%Y")
-        #     f_nacimiento = f_nacimiento.strftime("%d%m%Y")
 
 
     with col9:
@@ -380,6 +379,13 @@ with main_form:
 
     with col11:
         st.session_state.ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
+    if st.session_state.nombre != '':
+        try:
+            st.session_state.curp = fx.calc_curp(st.session_state.nombre,st.session_state.apellido_paterno,st.session_state.apellido_materno,
+            st.session_state.f_nacimiento, genero, st.session_state.edo_nac)
+        except:
+            st.session_state.curp = ''
+        st.write(st.session_state.curp)
 
 #     #===================== DOMICILSemaforización y tiempo de espera estimado *
 # Rojo (emergencia) tiempo de espera INMEDIATO
@@ -473,6 +479,14 @@ with main_form:
     with col32:
         st.session_state.responsable_parentesco = st.text_input('Parentesco:')
 
+    form_ID_button = st.form_submit_button('Guardar ficha de identificación')
+    if form_ID_button:
+        st.success('Se han guardado los cambios')
+
+#=====================================================================================================
+
+antecedentes_form = st.form('antecedentes_form')
+with antecedentes_form:
 
     st.header('Motivo de consulta')
     mc_consulta = st.expander('La razón por la que acuden a valoración')
@@ -583,10 +597,10 @@ with main_form:
             apnp_cal_comidas = st.selectbox('calidad y cantidad de alimentación:',['buena', 'regular', 'mala'],key='calidad_alim')
 
         with col52:
-            apnp_agua = st.selectbox('consumo de agua:',['adecuado','pobre','elevado'],key='agua')
+            apnp_agua = st.selectbox('consumo de agua:',['adecuado', 'regular','pobre','elevado'],key='agua')
 
         with col53:
-            apnp_ejercicio = st.selectbox('actividad física',['nula','2-3 días/semana','>3 días/semana'],key='ejercicio')
+            apnp_ejercicio = st.selectbox('actividad física',['nula','2-3 días/semana','>3 días/semana', 'todos los días'],key='ejercicio')
 
         with col54:
             apnp_baño = st.selectbox('baño y cambio de ropa',['diario','1-2 veces por semana','3 veces por semana', 'nunca'],key='ejercicio')
@@ -610,14 +624,18 @@ with main_form:
             apnp_tatuajes = st.text_input('Tatuajes o perforaciones:','Negados',key='tatuajes')
 
         with col60:
-            apnp_vacunas = st.text_input('Inumizaciones:','Completas para la edad',key='vacunas')
+            apnp_vacunas = st.text_input('Inumizaciones:','Completas para la edad y con esquema de Sars-Cov-2: completo',key='vacunas')
 
         with col61:
-            apnp_ago = st.text_input('AGO:','No aplica',key='ago')
-            if apnp_ago == 'No aplica':
-                apnp_ago = ''
+            if genero == 'H':
+                apnp_ago = st.text_input('AGO:','No aplica',key='ago')
             else:
-                apnp_ago = f'AGO: {apnp_ago}'
+                apnp_ago = st.text_input('AGO:','Menarca: , IVSA: , PS: , FUM: , Ciclos: regulares 28x3, G:0 P:0 C:0 A:0, Anticoncepción: ninguna', key='ago')
+            apnp_ago = f'AGO: {apnp_ago}'
+            # if apnp_ago == 'No aplica':
+            #     apnp_ago = ''
+            # else:
+            #     apnp_ago = f'AGO: {apnp_ago}'
 
         apnp_anexo_hosp = st.text_input('Anexiones u hospitalizaciones:',"Negadas",key='hospi')
         apnp_merge = f'Vive {apnp_vive_con}, en {apnp_tipo_vivienda} en un medio {apnp_medio_vivienda} {apnp_vivienda_servicios}.{renglon}Se alimenta {apnp_no_comidas} al día de {apnp_cal_comidas} calidad. Tiene un {apnp_agua} consumo de agua. Su actividad física es {apnp_ejercicio}. Su orientación sexual referida es {apnp_sexual}. Viajes recientes: {apnp_viajes}. Convivencia con animales: {apnp_animales}. Exposición a biomasa, solventes, agroquímicos u otros: {apnp_exposicion}. Tatuajes o perforaciones: {apnp_tatuajes}. Vacunas: {apnp_vacunas}{renglon}{apnp_ago}{renglon}HOSPITALIZACIONES/ANEXIONES: {apnp_anexo_hosp}.'
@@ -798,8 +816,8 @@ with main_form:
         examen_mental = st.text_area('Lista de plantillas de examen mental:',f'{str(sel_em)}',height=250)
     
 
-    main_button = st.form_submit_button('Guardar historia clínica')
-    if main_button:
+    antecedentes_form_button = st.form_submit_button('Guardar historia clínica')
+    if antecedentes_form_button:
         st.success('Se han guardado los cambios')
 
 # dsm_form = st.form('dsm_form')
@@ -1033,21 +1051,7 @@ data_dict = {
     'fecha16': date,
     'ef': f'{ef_merge} | FC: {fc} lpm, FR: {fr} rpm, TA: {ta} mmHg, Temperatura: {temp} °C | Peso: {peso} kg, Talla: {talla} cm, IMC: {imc}',
     'presentacion': f'{nombre_completo}, {st.session_state.sexo} de {st.session_state.edad} años, nacido el {st.session_state.f_nacimiento}, oriundo y residente de {st.session_state.ciudades}, {st.session_state.edo_nac}. {st.session_state.edo_civil}, de religión {st.session_state.religion}, con estudios de {st.session_state.escolaridad} quien se desempeña como {st.session_state.ocupacion} y actualmente esta {st.session_state.trabajo}.',
-    'mc17': st.session_state.mc,
-    'pa18': pepa,
-    'ahf19': ahf_merge,
-    'apnp20': apnp_merge,
-    'app_2': app_merge,
-    'ipas21': ipas,
-    'sustancias22': sustancias_merge,
     'ef23': alteraciones_ingreso,
-    'em23': examen_mental,
-    'analisis24': analisis,
-    'labs25': labs_merge,
-    'dx26': str_dx,
-    'clinimetria27': clinimetria,
-    'pronostico28': pronostico,
-    'tx29': tx,
     'alergia_1': aviso_alergias,
     'alergia_2': aviso_alergias,
     'alergia_3': aviso_alergias,
