@@ -208,3 +208,19 @@ def calc_curp(nombres, a_paterno, a_materno, fecha_nacimiento, sexo, edo_nac):
     curp = GenerateCURP(**kwargs)
     data = curp.data
     return data
+
+def medicine_extract(tx):
+    tx_med = tx.splitlines(keepends=True)
+    lab_position = 0
+    for i in tx_med:
+        # print(i)
+        if '6.' in i:
+            #find list position
+            lab_position =  tx_med.index(i)
+            # st.write(lab_position)
+            break
+    tx_med = tx_med[5:lab_position]
+    temp_med = ''
+    for i in tx_med:
+        temp_med = f'{temp_med}'+i
+    return temp_med

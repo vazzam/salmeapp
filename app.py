@@ -35,6 +35,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+
 rand_ta = f'{random.randint(100,130)}/{random.randint(66,78)}'
 
 escalas = ['RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf', 'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf', 'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf', 'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf']
@@ -369,8 +370,6 @@ with ficha_ID:
         st.session_state.f_nacimiento = datetime.strptime(st.session_state.f_nacimiento, '%d/%m/%Y')
         temp_date = st.session_state.f_nacimiento
         st.session_state.f_nacimiento = st.session_state.f_nacimiento.strftime("%d%m%Y")
-
-
 
     with col9:
         # st.write(calculate_age(temp_date))
@@ -852,7 +851,6 @@ with form_dx:
     #         fx.displayPDF(f'./data/DSM_5.pdf')
 
 
-
     DX = st.expander('Físicos, psiquiátricos, personalidad, psicosocial')
     with DX:
         cie10 = fx.cie_10()
@@ -892,22 +890,13 @@ with form_tx:
         except:
             lista_problemas = []
 
+        main_dx = lista_problemas
 
         if manejo == 'Hospitalario':
             indicaciones = f'1. Ingreso a  con brazalete .{renglon}2. Condición: .{renglon}3. Diagnóstico: {lista_problemas}.{renglon}4. Pronóstico: {pronostico}.{renglon}5. MEDICAMENTOS:{renglon}-{renglon}6. Laboratoriales: {labs_nvos}.{renglon}7. SVPT,CGE, Vigilancia continua y reporte de eventualidades.{renglon}8. valoración por medicina general.'
-        
-            tx_med = indicaciones.splitlines()
-            #find string into string in list
-            lab_position = 0
-            for i in tx_med:
-                # print(i)
-                if '6.' in i:
-                    #find list position
-                    lab_position =  tx_med.index(i)
-                    # print(lab_position)
-                    break
-            tx_med = tx_med[5:lab_position]
-        tx = st.text_area('',indicaciones,height=200,key=3483169)
+
+        tx = st.text_area('',f'{indicaciones}\n>>>> SE DAN DATOS DE ALARMA Y CITA ABIERTA A URGENCIAS <<<<',height=200,key=3483169)
+
         
         #============================ ANALISIS
     st.header('Análisis')
@@ -918,6 +907,22 @@ with form_tx:
     if tx_button:
         st.success('Se han guardado los cambios')
 
+
+        # if manejo == 'Hospitalario':        
+        #     # st.write('HOSPITALARIO')
+        #     tx_med = tx.splitlines()
+        #     # st.write(tx_med)
+        #     #find string into string in list
+        #     lab_position = 0
+        #     for i in tx_med:
+        #         # print(i)
+        #         if '6.' in i:
+        #             #find list position
+        #             lab_position =  tx_med.index(i)
+        #             # st.write(lab_position)
+        #             break
+        #     tx_med = tx_med[5:lab_position]
+            
 pdf_file_name = input_pdf_name
 def fill_form(data_dict, pdf_file_name, out_file_name=None):
     if out_file_name is None:
@@ -988,6 +993,9 @@ data_dict = {
     "Primer apellido":st.session_state.apellido_paterno,
     "Segundo apellido":st.session_state.apellido_materno,
     "f_nacimiento":st.session_state.f_nacimiento,
+    'dia': temp_date.strftime("%d"),
+    'mes': temp_date.strftime("%m"),
+    'año': temp_date.strftime("%y"),
     "Años":str(st.session_state.edad),
     "Hombre":hombre,
     "Mujer": mujer,
@@ -1067,8 +1075,9 @@ data_dict = {
     'ef_alteraciones': ef_alteraciones,
     'em': examen_mental,
     'dx': dxs,
+    'main_dx': main_dx,
     'tx': tx,
-    'tx_med': tx_med,
+    'tx_med': f'{fx.medicine_extract(tx)}',
     'pronostico': pronostico,
     'clinimetria': clinimetria,
     'analisis': analisis,
