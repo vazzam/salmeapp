@@ -444,7 +444,7 @@ with ficha_ID:
         st.session_state.edo_civil = st.selectbox('Estado civil: ', ['Soltero', 'Casado', 'Unión libre','Divorciado', 'Viudo', 'Separado'])
 
     with col23:
-        st.session_state.religion = st.selectbox('Religión:',['católica','cristiana','judía','mormona','islam', 'otra', 'no referida'],key='religion')
+        st.session_state.religion = st.selectbox('Religión: ',['católica','cristiana','judía','mormona','islam', 'otra', 'no referida'])#,key='religion')
         #st.session_state.religion = st.text_input('Religión:')
 
     with col24:
