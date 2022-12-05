@@ -1212,7 +1212,7 @@ if gen_pdf:
         Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
                 ExpiresIn=240)
     progress_bar = st.progress(0)
-    for i in range(70):
+    for i in range(100):
         # Update progress bar.
         progress_bar.progress(i + 1)
         time.sleep(0.05)
