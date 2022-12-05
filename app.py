@@ -46,7 +46,8 @@ gpc = [
 'IMSS-515-11 Diagnostico y manejo del estres post traumatico', 'SS-343-16 Diagnostico y tratamiento del consumo de marihuana en adultos en primer y segundo nivel de atención',
 'SS-023-08 Prevención, detección y consejeria en adicciones para adolescentes y adultos.', 'IMSS-385-10 Diagnostico y tratamiento de los trastornos del Sueño',
 'SS-666-14 Prevención, diagnóstico y manejo de la depresión prenatal', 'SS-294-10 Detección y atención de violencia de pareja en adulto',
-'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto'    
+'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto',
+'IMSS-465-11 Prevención, diagnóstico y tratamiento del DELIRIUM en el adulto mayor hospitalizado'    
 ]
 
 path_folder = os.getcwd()+'/tmp/'
@@ -376,10 +377,12 @@ with ficha_ID:
         st.session_state.edad = st.text_input('Edad:',f'{fx.calculate_age(temp_date)}', disabled=True)#st.text_input('Edad: ', '0')
     with col10:
         df = municipios
-        st.session_state.edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
+        #st.session_state.edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
+        st.session_state.ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
 
     with col11:
-        st.session_state.ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
+        st.session_state.edo_nac = st.selectbox('Edo. Nacimiento:', df['admin_name'].unique(), key=44)
+        #st.session_state.ciudades = st.selectbox('Ciudad de nacimiento: ',df['city'].unique())
     if st.session_state.nombre != '':
         try:
             st.session_state.curp = fx.calc_curp(st.session_state.nombre,st.session_state.apellido_paterno,st.session_state.apellido_materno,
@@ -420,10 +423,12 @@ with ficha_ID:
         st.session_state.dom_asentamiento = st.text_input('Nombre del asentamiento:')
 
     with col19:
-        st.session_state.dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
+        st.session_state.dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
+        #st.session_state.dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
 
     with col20:
-        st.session_state.dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
+        st.session_state.dom_edo = st.selectbox('Entidad federativa:',df['admin_name'].unique(), key=4412)
+        #st.session_state.dom_cd = st.selectbox('Municipio:',df['city'].unique(), key=789271)
 
 
     col21, col22, col23,col24, col25 = st.columns([0.15,0.15,0.20,0.30,0.15])
@@ -439,7 +444,8 @@ with ficha_ID:
         st.session_state.edo_civil = st.selectbox('Estado civil: ', ['Soltero', 'Casado', 'Unión libre','Divorciado', 'Viudo', 'Separado'])
 
     with col23:
-        st.session_state.religion = st.text_input('Religión:')
+        st.session_state.religion = st.selectbox('Religión:',['católica','cristiana','judía','mormona','islam', 'otra', 'no referida'],key='religion')
+        #st.session_state.religion = st.text_input('Religión:')
 
     with col24:
         st.session_state.ocupacion = st.text_input('Ocupación habitual:')
@@ -608,7 +614,7 @@ with antecedentes_form:
 
         col55, col56, col57, col58 = st.columns([0.25,0.25,0.25,0.25])
         with col55:
-            apnp_sexual = st.selectbox('Orientación sexual:',['heterosexual','homosexual','pansexual','asexual', 'no referida'],key='orientacion_sex')
+            apnp_sexual = st.selectbox('Orientación sexual:',['heterosexual','bisexual','homosexual','pansexual','asexual', 'no referida'],key='orientacion_sex')
 
         with col56:
             apnp_viajes = st.text_input('Viajes:','Negados',key='viajes')
@@ -1091,6 +1097,7 @@ data_dict = {
     'alergia_2': aviso_alergias,
     'alergia_3': aviso_alergias,
     'guia': guia,
+    'sex_ref': st.session_state.sexo,
 
 
     }
@@ -1148,7 +1155,7 @@ for j in range(len(alteraciones_arr)):
     if genitales == alteraciones_arr[j]:
         data_dict[genital_options[j]] = 'Yes'
 
-st.subheader('Visualizar escalas')
+# st.subheader('Visualizar escalas')
 
 sections_dict = {'Ficha de identificación':'#ficha-de-identificaci-n' ,
                 'Motivo de consulta':"#motivo-de-consulta" ,
