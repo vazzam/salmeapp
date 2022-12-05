@@ -900,8 +900,9 @@ with form_tx:
 
         if manejo == 'Hospitalario':
             indicaciones = f'1. Ingreso a  con brazalete .{renglon}2. Condición: .{renglon}3. Diagnóstico: {lista_problemas}.{renglon}4. Pronóstico: {pronostico}.{renglon}5. MEDICAMENTOS:{renglon}-{renglon}6. Laboratoriales: {labs_nvos}.{renglon}7. SVPT,CGE, Vigilancia continua y reporte de eventualidades.{renglon}8. valoración por medicina general.'
-
-        tx = st.text_area('',f'{indicaciones}\n>>>> SE DAN DATOS DE ALARMA Y CITA ABIERTA A URGENCIAS <<<<',height=200,key=3483169)
+            tx = st.text_area('',f'{indicaciones}\n',height=200,key=3483169)
+        else:
+            tx = st.text_area('',f'{indicaciones}\n>>>> SE DAN DATOS DE ALARMA Y CITA ABIERTA A URGENCIAS <<<<',height=200,key=34839169)
 
         
         #============================ ANALISIS
