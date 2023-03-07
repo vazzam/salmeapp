@@ -132,7 +132,7 @@ def displayPDF(file):
     # Displaying File
     st.markdown(pdf_display, unsafe_allow_html=True)
 
-@st.cache(persist=True)
+# @st.cache(persist=True)
 def cie_10():
     cie10 = pd.read_csv('./data/cie-10.csv', usecols=[0,6], header=0, names=['code','diagnostic'])
     cie10['code'] = cie10['diagnostic'] + ' CIE-10 ('+ cie10['code']+')'
