@@ -3,6 +3,11 @@ from datetime import date, datetime
 import streamlit as st
 from unidecode import unidecode
 import pymongo
+import time
+from pymongo import MongoClient
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+import os
 
 # RAND BLOOD PRESSURE VALUES
 def rand_ta():
@@ -41,7 +46,7 @@ def radio_check(var):
     if var != '':
         return 'Yes'
     else:
-        return 'Off'
+        return ''
     
 def update_dict(dic,var):
     dic.update({var:'Yes',})
@@ -204,3 +209,34 @@ def note_show(consultas_previas, paciente, nota):
                                     ) #f'{consulta}{renglon}{renglon}MC: {mc}{renglon}PA: {pa}{renglon}{renglon}EXAMEN MENTAL{renglon}{renglon}{em}{renglon}{renglon}EXPLORACIÓN FÍSICA{renglon}{renglon}{somato_sv_merge}{renglon}{renglon}{ef_merge}{renglon}{alteraciones_merge}{renglon}{renglon}LABORATORIALES{renglon}- Previos: {labs_prev}{renglon}- Solicitados: {labs_nvos}{renglon}{renglon}DIAGNÓSTICO(S){renglon}{renglon}{dx}{renglon}{renglon}PRONÓSTICO: {pronostico}{renglon}{renglon}{clinimetria}{renglon}{renglon}ANÁLISIS{renglon}{renglon}{analisis}TRATAMIENTO{renglon}{renglon}{tx}'
                     st.subheader(f'Consulta subsecuente No: {consultas_previas}')
                     nota_revisada = st.text_area('', consulta_anterior, height=350)
+
+def mongo_intial():
+    uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+    client = MongoClient(uri)
+    db = client['expedinente_electronico'] #base de datos
+    pacientes = db['pacientes'] #colección
+    ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
+    return client, pacientes
+
+def mongo_connect():
+    uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+    client = MongoClient(uri)
+    db = client['expedinente_electronico'] #base de datos
+    pacientes = db['pacientes'] #colección
+    ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
+    return client
+
+def gdrive_up(local_file, final_name):
+    g_login = GoogleAuth()
+    g_login.LocalWebserverAuth()
+    drive = GoogleDrive(g_login)
+    file_name = local_file
+    gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
+    # Read file and set it as the content of this instance.
+    gfile.SetContentFile(file_name)
+    gfile.Upload()
+    print(file_name)
+    # gfile.GetContentFile(file_name)
+    print('---------DESPUES DE LEER ARCHIVO')
+    file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
+    return file_url
