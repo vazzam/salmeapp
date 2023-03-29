@@ -27,13 +27,13 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
-# client = MongoClient(uri)
-# db = client['expedinente_electronico'] #base de datos
-# pacientes = db['pacientes'] #colección
-# afx.ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
+uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+client = MongoClient(uri)
+db = client['expedinente_electronico'] #base de datos
+pacientes = db['pacientes'] #colección
 
-# pacientes = afx.mongo_initial()
+# criteria = {"nombres": {"$regex": afx.unidecode_except('Juán', ['ñ']), "$options": "i"}} #La opción i ayuda a quitar case sensitive
+afx.ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
 
 s3 = boto3.client('s3')
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
@@ -109,12 +109,12 @@ with ficha_ID:
         st.session_state.sexo = st.radio('Sexo:', ['Hombre','Mujer'])
         binary_sexo = 0
         if st.session_state.sexo == 'Hombre':
-            mujer = ''
+            mujer = 'Off'
             hombre = 'Yes'
             genero = 'H'
-        else:
+        elif st.session_state.sexo == 'Mujer':
             mujer = 'Yes'
-            hombre = ''
+            hombre = 'Off'
             genero = 'M'
             ## Range selector
 
@@ -220,7 +220,7 @@ with ficha_ID:
 
     with col28:
         referido_options = ['referido_no','referido_si']
-        referido_arr = ['no referido', 'referido']
+        referido_arr = ['referido', 'no referido']
         st.session_state.referido = st.selectbox('Referencia:', referido_arr)
 
     with col29:
@@ -809,7 +809,7 @@ afx.update_dict(data_dict,st.session_state.trabajo)
 afx.update_dict(data_dict,st.session_state.etnia)
 
 # Data de paciente para db mongo
-# st.write(afx.id_gen())
+st.write(afx.id_gen())
 paciente = {
     "id":afx.id_gen(),
     "expediente":st.session_state.no_expediente,
@@ -1054,25 +1054,18 @@ css_code = '<style>ul{\
 
 gen_pdf = st.button('Generar archivo PDF')
 if gen_pdf:
-    client, pacientes = afx.mongo_intial()
     pacientes.insert_one(paciente)
-    client.close()
     fillpdfs.get_form_fields(pdf_template)
     temp_pdf = fillpdfs.write_fillable_pdf(pdf_template, f'{nombre_completo}.pdf', data_dict)
     # st.balloons()
     st.write(f'{nombre_completo}')
 
     hc_name = f'{nombre_completo}.pdf'
-    local_file = f'{nombre_completo}.pdf'
-    response = afx.gdrive_up(local_file, hc_name)
-    
-    #========================= ACTIVAR CÓDIGO COMENTADO SI SE QUIERE REACTIVAR ALMACENAMIENTO DE ARCHIVOS EN AWS
-    #fx.s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
-    # hc_pdf = fx.s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
-    # response = s3.generate_presigned_url('get_object',\
-    #     Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
-    #             ExpiresIn=240)
-
+    fx.s3_upload('salme',hc_name, f'salme/hc/{nombre_completo}.pdf')
+    hc_pdf = fx.s3_download('salme', f'salme/hc/{nombre_completo}.pdf', hc_name)
+    response = s3.generate_presigned_url('get_object',\
+        Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
+                ExpiresIn=240)
     progress_bar = st.progress(0)
     for i in range(100):
         # Update progress bar.
