@@ -7,6 +7,8 @@ import time
 from pymongo import MongoClient
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+from oauth2client.service_account import ServiceAccountCredentials
+
 import os
 
 # RAND BLOOD PRESSURE VALUES
@@ -226,12 +228,30 @@ def mongo_connect():
     ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
     return client
 
+# def gdrive_up(local_file, final_name):
+#     g_login = GoogleAuth()
+#     g_login.LocalWebserverAuth()
+#     drive = GoogleDrive(g_login)
+#     file_name = local_file
+#     gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
+#     # Read file and set it as the content of this instance.
+#     gfile.SetContentFile(file_name)
+#     gfile.Upload()
+#     print(file_name)
+#     # gfile.GetContentFile(file_name)
+#     print('---------DESPUES DE LEER ARCHIVO')
+#     file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
+#     return file_url
+
 def gdrive_up(local_file, final_name):
-    g_login = GoogleAuth()
-    g_login.LocalWebserverAuth()
-    drive = GoogleDrive(g_login)
+    gauth = GoogleAuth()
+    scope = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/drive.appdata']
+    # gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name('./service_account.json',scope)
+    gauth.service_account_json = 'service_account.json'
+    print(gauth)
+    drive = GoogleDrive(gauth)
     file_name = local_file
-    gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
+    gfile = drive.CreateFile({'parents': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm', 'title': final_name})
     # Read file and set it as the content of this instance.
     gfile.SetContentFile(file_name)
     gfile.Upload()
