@@ -440,11 +440,11 @@ if st.session_state.bus_nombre != '':
         temp_dx = dx.replace('\n', ' ')        
         temp_re_tx = re_tx.replace('\n', ' ') 
         edad_pres = afx.calculate_age(datetime.strptime(paciente[0]['generales']['nacimiento']['fecha'], '%d%m%Y'))   
-        if consultas_previas >= 3:
+        if consultas_previas >= 2:
             nota_dx_pres = paciente[0]['consultas'][-1]['dx'].replace('\n', ' ')
             nota_tx_pres = paciente[0]['consultas'][-1]['plan'].replace('\n', ' ')
 
-        if consultas_previas >= 3:
+        if consultas_previas >= 2:
             presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {nota_dx_pres} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {fecha_consulta_1} y esquema de tratamiento: {nota_tx_pres}')
         else:
             presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {temp_dx} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {fecha_consulta_1} y esquema de tratamiento: {temp_re_tx}')
@@ -496,14 +496,15 @@ if st.session_state.bus_nombre != '':
         with col_asrs:
             asrs = st.text_input('ASRS')
         otras_clini = st.text_input('Otras:')
-        if consultas_previas >= 3:
-            dx = st.text_area('Diagnóstico', nota_dx)
+        if consultas_previas >= 2:
+            st.text('IGUAL O MÁS DE 3 CONSULTAS')
+            dx = st.text_area('Diagnóstico', nota_dx_pres)
         else:
             dx = st.text_area('Diagnóstico', dx)
         analisis = st.text_area('Análisis')
         st.subheader(f'Alergias: {app_alergias}')  
-        if consultas_previas >= 3:      
-            plan = st.text_area('Plan', nota_tx)
+        if consultas_previas >= 2:      
+            plan = st.text_area('Plan', nota_tx_pres)
         else:
             plan = st.text_area('Plan', re_tx)
 
