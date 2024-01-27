@@ -8,9 +8,9 @@ from pymongo import MongoClient
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
-import openai
+# import openai
 import os
-openai.api_key = "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"
+# openai.api_key = "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"
 
 # RAND BLOOD PRESSURE VALUES
 def rand_ta():
@@ -276,11 +276,11 @@ def gdrive_up(local_file, final_name):
     file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
     return file_url
 
-def chatgpt(data, summary_lenght, model = 'chat'):
-    prompt = f'Actúa como un experto médico especialista en pisuiatría y ayúdame a hacer un resumen a forma de párrafo de no más de 10 líneas con los principales antecedentes del paciente y finallmente organiza en una tabla cada una de las consultas con los principales síntomas y tratamientos: {data}'
-    if model == 'chat':
-            response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
-            messages=[{"role": "user", "content": f'{prompt}'}
-                ])
-            return response.choices[0]['message']['content']
+# def chatgpt(data, summary_lenght, model = 'chat'):
+#     prompt = f'Actúa como un experto médico especialista en pisuiatría y ayúdame a hacer un resumen a forma de párrafo de no más de 10 líneas con los principales antecedentes del paciente y finallmente organiza en una tabla cada una de las consultas con los principales síntomas y tratamientos: {data}'
+#     if model == 'chat':
+#             response = openai.ChatCompletion.create(
+#             model="gpt-3.5-turbo-16k",
+#             messages=[{"role": "user", "content": f'{prompt}'}
+#                 ])
+#             return response.choices[0]['message']['content']
