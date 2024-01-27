@@ -8,8 +8,9 @@ from pymongo import MongoClient
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
-
+import openai
 import os
+openai.api_key = "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"
 
 # RAND BLOOD PRESSURE VALUES
 def rand_ta():
@@ -17,7 +18,7 @@ def rand_ta():
     return ta
 
 #ALMACEN DATOS FIJOS
-
+@st.cache_data
 def stored_data(name):
     
     data = {
@@ -57,7 +58,7 @@ def id_gen():
     now = datetime.now()
     date_id = now.strftime('%d%m%y%H%M%S')
     return int(date_id)
-
+# @st.cache_data
 def ensure_index(action, collection, index_name, index_key):
     """
     Ensure that a specified index exists on a collection. If the index does not
@@ -79,7 +80,7 @@ def ensure_index(action, collection, index_name, index_key):
     else:
         collection.drop_index(index_name)
         print(f'Index {index_name} has been deleted')
-
+# @st.cache_data
 def search_collection(collection, criteria, all_info = True):
     """
     Search a MongoDB collection for documents that match a set of criteria.
@@ -172,16 +173,17 @@ def check_ef(var):
 
 def note_show(consultas_previas, paciente, nota):
     renglon = '\n'
-    evol = st.expander('CONSULTAS PREVIAS')
+    evol = st.expander('CONSULTAS PREVIAS', expanded=True)
     with evol:
         # st.subheader(consultas_previas)
         fechas_citas = []                       
         for i in range(consultas_previas):
-            fechas_citas.append(paciente[0]['consultas'][i]['fecha'])
+            fechas_citas.insert(0,paciente[0]['consultas'][i]['fecha'])
+            # fechas_citas = sorted(fechas_citas, key=lambda x: datetime.strptime(x, "%d/%m/%Y %H:%M"), reverse=True)
         fecha_nota_prev = st.selectbox('Seleccione fecha de citas previas:', fechas_citas)
         for consulta in paciente[0]["consultas"]:
             if consulta["fecha"] == fecha_nota_prev:
-                if consulta['fecha'] == fechas_citas[0]: # Se coteja si es la consulta de primera vez
+                if consulta['fecha'] == fechas_citas[-1]: # Se coteja si es la consulta de primera vez
                     #Es consulta de primera vez
                     st.subheader('Consulta de primera vez')
                     # st.write(consulta)
@@ -191,10 +193,10 @@ def note_show(consultas_previas, paciente, nota):
                     # st.write(consulta)
                     prev_cons = consulta
 
-                    consulta_anterior = (prev_cons['fecha'] + renglon + renglon + '- ' +
-                                            prev_cons['presentacion'].replace('\n', ' ') + renglon + '- ' +
+                    consulta_anterior = ('##### '+prev_cons['fecha'] + renglon + renglon + #'- ' +
+                                            '> ' + prev_cons['presentacion'].replace('\n', ' ') + renglon + '- ' + 
                                             prev_cons['subjetivo'] + renglon + renglon + 
-                                            'SOMATOMETRÍA Y SIGNOS VITALES:' + renglon + 
+                                            '- '+'SOMATOMETRÍA Y SIGNOS VITALES:' + renglon + 
                                             'FC: ' + prev_cons['fc'] + ' lpm' + ' | ' +  'FR: ' + prev_cons['fr'] + ' rpm' + ' | ' + 'TA: ' + prev_cons['ta'] + ' mmHg' + ' | ' + ' ------- ' + 'PESO: ' +  str(prev_cons['peso']) + ' ' + 'kg' + '  ' + 'TALLA: ' + str(prev_cons['talla']) + ' ' + 'cm' + renglon + renglon + '- ' +
                                             prev_cons['objetivo'] + renglon + renglon + 
                                             'PHQ-9: '+ prev_cons['clinimetrias']['phq9'] + ' ' + ' |   ' + 
@@ -203,14 +205,27 @@ def note_show(consultas_previas, paciente, nota):
                                             'YOUNG: '+ prev_cons['clinimetrias']['young'] + ' ' + ' |   ' +
                                             'MDQ: '+ prev_cons['clinimetrias']['mdq'] + ' ' + ' |   ' +
                                             'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
-                                            'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   '                                             
+                                            'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +     
+                                            '##### '+ 'ANÁLISIS: ' + renglon +prev_cons['analisis'] + renglon + renglon +
+                                            '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- '
                                 #  prev_cons['objetivo'] + renglon + 
                                 #  prev_cons[''] + renglon + 
                                 #  prev_cons[''] + renglon + 
                                 #  prev_cons[''] + renglon + 
                                     ) #f'{consulta}{renglon}{renglon}MC: {mc}{renglon}PA: {pa}{renglon}{renglon}EXAMEN MENTAL{renglon}{renglon}{em}{renglon}{renglon}EXPLORACIÓN FÍSICA{renglon}{renglon}{somato_sv_merge}{renglon}{renglon}{ef_merge}{renglon}{alteraciones_merge}{renglon}{renglon}LABORATORIALES{renglon}- Previos: {labs_prev}{renglon}- Solicitados: {labs_nvos}{renglon}{renglon}DIAGNÓSTICO(S){renglon}{renglon}{dx}{renglon}{renglon}PRONÓSTICO: {pronostico}{renglon}{renglon}{clinimetria}{renglon}{renglon}ANÁLISIS{renglon}{renglon}{analisis}TRATAMIENTO{renglon}{renglon}{tx}'
-                    st.subheader(f'Consulta subsecuente No: {consultas_previas}')
-                    nota_revisada = st.text_area('', consulta_anterior, height=350)
+                    # st.subheader(f'Consulta subsecuente No: {consultas_previas}')
+                    # nota_revisada = st.text_area('', consulta_anterior, height=450)
+                    st.markdown(consulta_anterior)
+    return fechas_citas[-1]
+
+def last_note(consultas_previas, paciente, nota):
+    renglon = '\n'
+    fechas_citas = []                       
+    for i in range(consultas_previas):
+        fechas_citas.append(paciente[0]['consultas'][i]['fecha'])
+    
+    return fechas_citas[-1], len(fechas_citas)
+
 
 def mongo_intial():
     uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
@@ -260,3 +275,12 @@ def gdrive_up(local_file, final_name):
     print('---------DESPUES DE LEER ARCHIVO')
     file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
     return file_url
+
+def chatgpt(data, summary_lenght, model = 'chat'):
+    prompt = f'Actúa como un experto médico especialista en pisuiatría y ayúdame a hacer un resumen a forma de párrafo de no más de 10 líneas con los principales antecedentes del paciente y finallmente organiza en una tabla cada una de las consultas con los principales síntomas y tratamientos: {data}'
+    if model == 'chat':
+            response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo-16k",
+            messages=[{"role": "user", "content": f'{prompt}'}
+                ])
+            return response.choices[0]['message']['content']

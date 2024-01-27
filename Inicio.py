@@ -124,7 +124,11 @@ with ficha_ID:
     with col8:
 
         # st.session_state.f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento_2')
-        st.session_state.f_nacimiento = st.text_input('Fecha de nacimiento: ', '11/01/2000',key='f_nac')
+        st.session_state.f_nacimiento = st.text_input('Fecha de nacimiento (dd/mm/yyyy): ', '11/01/2000',key='f_nac')
+        # st.date_input('fecha', format="DD.MM.YY")
+        if len(st.session_state.f_nacimiento) != 10:
+            st.warning('EL FORMATO DE LA FECHA DE NACIEMIENTO ES INCORRECTO, RECUERDA EL FORMATO dd/mm/yyyy ej. 02/12/1989')
+            st.stop()
         st.session_state.f_nacimiento = datetime.strptime(st.session_state.f_nacimiento, '%d/%m/%Y')
         temp_date = st.session_state.f_nacimiento
         st.session_state.f_nacimiento = st.session_state.f_nacimiento.strftime("%d%m%Y")
@@ -238,6 +242,7 @@ with ficha_ID:
 
     form_ID_button = st.form_submit_button('Guardar ficha de identificación')
     if form_ID_button:
+        date_chr = len(st.session_state.f_nacimiento)#.split("/")
         st.success('Se han guardado los cambios')
 
 #=====================================================================================================

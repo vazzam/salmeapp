@@ -26,7 +26,7 @@ st.set_page_config(
     page_title=" Subsecuentes",
     page_icon="fav.png",  # EP: how did they find a symbol?
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
@@ -70,52 +70,101 @@ projection = { '_id': 1, "nombres": 1, 'primer apellido': 1, "segundo apellido":
 
 # criteria = {'nombres': {"$regex": query_val[0],"$options": "i"}, 'primer apellido': {"$regex":query_val[1], "$options": "i"},'segundo apellido': {"$regex":query_val[2], "$options": "i"}}
 criteria = afx.data_format(query_field, query_val)
-
+doc_id = None
 if st.session_state.bus_nombre != '':
-    if st.session_state.bus_nombre!= '':
-        paciente = afx.search_collection(pacientes, criteria, all_info=False)
+    if st.session_state.bus_nombre!= '':    
+        paciente = afx.search_collection(pacientes, criteria, all_info=True)
         # st.write(paciente)
         if len(paciente) > 1:
         #===============================================================
         #FILTRADO POR FECHAS DE NACIEMIENTO EN CASO DE DOS PACIENTES DE MISMO NOMBRE
-            fechas_nac = []
+            nombres = []
+            id_arr = []
             for i in range(len(paciente)):
+                if i == 0:
+                    usr = paciente[i]['nombres'] + ' ' + paciente[i]['primer apellido'] + ' ' + paciente[i]['segundo apellido']
+                    nombres.append(paciente[i]['nombres'] + ' ' + paciente[i]['primer apellido'] + ' ' + paciente[i]['segundo apellido'])
+                    # st.text(usr)
+                    usr_id = paciente[i]['_id']
+                    usr_dict = {usr:usr_id}
+                else:
                 # doc_field[i] = paciente[i]['nombres'] + ' ' + paciente[i]['segundo apellido'] + ' ' + paciente[i]['primer apellido']
-                fechas_nac.append(paciente[i]['generales']['nacimiento']['fecha'])
-            birthdate = st.selectbox('Fecha de nacimiento', fechas_nac)
-            criteria['generales.nacimiento.fecha'] = birthdate
+                    nombres.append(paciente[i]['nombres'] + ' ' + paciente[i]['primer apellido'] + ' ' + paciente[i]['segundo apellido'])#paciente[i]['generales']['nacimiento']['fecha'])
+                    id_arr.append(paciente[i]['_id'])
+                    usr = paciente[i]['nombres'] + ' ' + paciente[i]['primer apellido'] + ' ' + paciente[i]['segundo apellido']
+                    usr_id = paciente[i]['_id']
+                    usr_dict[usr] = usr_id
+
+            paciente_name = st.selectbox('Selecciona un paciente', nombres)
+            index = nombres.index(paciente_name)
+            paciente = [paciente[index]]
+            # st.text(index)
+            criteria['_id'] = usr_dict[paciente_name]
+            doc_id = criteria['_id']
+            # st.header(doc_id)
+            # st.text('Este es el id del paciente seleccionado')
+            # st.text(criteria['_id'])
         #================================================================
+        elif len(paciente) == 1:
+            doc_id = paciente[0]['_id']
+            # st.text(paciente)
 
-        paciente = afx.search_collection(pacientes, criteria, True)
-        # query_field = ['nombres', 'primer apellido', 'segundo apellido', 'generales.nacimiento,fecha']
-        # query_val = [st.session_state.bus_nombre, st.session_state.bus_apellido_paterno, st.session_state.bus_apellido_materno, birthdate]
-        # criteria = {'nombres': {"$regex": query_val[0],"$options": "i"}, 'primer apellido': {"$regex":query_val[1], "$options": "i"},'segundo apellido': {"$regex":query_val[2], "$options": "i"}}
-        doc_id = paciente[0]['_id']
-        # st.write(paciente)
+        # doc_field = afx.doc_field(db, 'pacientes', criteria, projection)
+        # st.text(doc_field)
 
-        doc_field = afx.doc_field(db, 'pacientes', criteria, projection)
+        # with st.sidebar:
+        #     st.markdown(f'''**Fecha de primera consulta:** :orange[**{fecha}**]''')
+        #     st.markdown(f'''**Edad:** :orange[**{edad}**] años  | |  **Lugar y fecha de nacimiento:** :orange[**{fnac}**] en :orange[**{cd_nac}**], :orange[**{edo_nac}**]''')
 
-        with st.sidebar:
+        #     escalas_expander = st.expander('Clinimetrías')
+        #     with escalas_expander:
+        #         escala_selected = st.selectbox('Selecciona la escala:',afx.stored_data('escalas'), key=342342)
+        #         fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+        if len(paciente) == 0:
+            st.text('No se encontró registro del paciente')
+            st.stop()
 
-            escalas_expander = st.expander('Clinimetrías')
-            with escalas_expander:
-                escala_selected = st.selectbox('Selecciona la escala:',afx.stored_data('escalas'), key=342342)
-                fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+        # st.text(paciente[0])
+        # summary = afx.chatgpt(paciente[0], 150, model = 'chat')
+        # st.text(summary)
 
-
-
-
-            
         st.subheader(paciente[0]['nombres'] + ' ' + paciente[0]['primer apellido'] + ' ' + paciente[0]['segundo apellido'])
+        fecha = paciente[0]['fecha']
+        fnac = paciente[0]['generales']['nacimiento']['fecha']
+        edad = paciente[0]['generales']['edad']#, disabled=True)#st.text_input('Edad: ', '0'
+        current_age = afx.calculate_age(datetime.strptime(paciente[0]['generales']['nacimiento']['fecha'], '%d%m%Y'))
+        day = fnac[:2]
+        month = fnac[2:4]
+        year = fnac[4:]
+        fnac = f"{day}/{month}/{year}"
+        cd_nac= paciente[0]['generales']['nacimiento']['lugar']['ciudad']
+        edo_nac = paciente[0]['generales']['nacimiento']['lugar']['estado']
+        # st.markdown(f'''**Fecha de primera consulta:** :orange[**{fecha}**]''')
+        # st.markdown(f'''**Edad:** :orange[**{edad}**] años  | |  **Lugar y fecha de nacimiento:** :orange[**{fnac}**] en :orange[**{cd_nac}**], :orange[**{edo_nac}**]''')
         identificacion = st.expander('FICHA IDENTIFICACÓN')
+        consultas_previas = len(paciente[0]['consultas'])
+        fecha_consulta_1 = paciente[0]['consultas'][0]['fecha']
+        primera_consulta = f'{fecha_consulta_1}'
+
+        last_note, total_notes = afx.last_note(consultas_previas, paciente, primera_consulta)
+        with st.sidebar:
+            st.subheader(paciente[0]['nombres'] + ' ' + paciente[0]['primer apellido'] + ' ' + paciente[0]['segundo apellido'])
+            st.markdown(f'''**Edad:** :orange[**{current_age}**] años{renglon}{renglon}**Nacimiento:** :orange[**{fnac}**] en :orange[**{cd_nac}**], :orange[**{edo_nac}**]''')
+
+            st.markdown(f'''**No. de consultas:** :orange[**{total_notes}**]''')
+            st.markdown(f'''**Primera consulta:** :orange[**{fecha}**]''')
+            st.markdown(f'''**Última consulta:** :orange[**{last_note}**]''')
+
+            # escalas_expander = st.expander('Clinimetrías')
+            # with escalas_expander:
+            #     escala_selected = st.selectbox('Selecciona la escala:',afx.stored_data('escalas'), key=342342)
+            #     fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
         with identificacion:
             col1,col2,col3 = st.columns([0.6,0.2,0.2])
             
             with col1:
                 st.session_state.curp = st.text_input("CURP: ", paciente[0]['generales']['1 CURP'])
             with col2:
-
-
                 st.session_state.no_expediente = st.text_input("No. expediente: ",paciente[0]['expediente'])
             with col3:
                 #format = 'DD MMM, YYYY'
@@ -330,6 +379,7 @@ if st.session_state.bus_nombre != '':
             labs_prev = paciente[0]['antecedentes']['sustancias']['otras']
             
             fecha_consulta_1 = paciente[0]['consultas'][0]['fecha']
+            ultima_consulta = paciente[0]['consultas'][-1]['fecha']
             mc = paciente[0]['consultas'][0]['motivo']
             pa = paciente[0]['consultas'][0]['pepa']
             ef_somatotipo = paciente[0]['consultas'][0]['ef']['general']['somatotipo']
@@ -420,7 +470,7 @@ if st.session_state.bus_nombre != '':
 
         consultas_previas = len(paciente[0]['consultas'])
     # st.write(consultas_previas)
-    afx.note_show(consultas_previas, paciente, primera_consulta)
+    notes_no = afx.note_show(consultas_previas, paciente, primera_consulta)
 
 
     nota_evol = st.form('nota_evol')
@@ -445,7 +495,7 @@ if st.session_state.bus_nombre != '':
             nota_tx_pres = paciente[0]['consultas'][-1]['plan'].replace('\n', ' ')
 
         if consultas_previas >= 2:
-            presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {nota_dx_pres} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {fecha_consulta_1} y esquema de tratamiento: {nota_tx_pres}')
+            presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {nota_dx_pres} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {ultima_consulta} y esquema de tratamiento: {nota_tx_pres}')
         else:
             presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {temp_dx} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {fecha_consulta_1} y esquema de tratamiento: {temp_re_tx}')
         subjetivo = st.text_area('Subjetivo')
@@ -497,7 +547,7 @@ if st.session_state.bus_nombre != '':
             asrs = st.text_input('ASRS')
         otras_clini = st.text_input('Otras:')
         if consultas_previas >= 2:
-            st.text('IGUAL O MÁS DE 3 CONSULTAS')
+            # st.text('IGUAL O MÁS DE 3 CONSULTAS')
             dx = st.text_area('Diagnóstico', nota_dx_pres)
         else:
             dx = st.text_area('Diagnóstico', dx)
