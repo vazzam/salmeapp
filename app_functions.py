@@ -314,23 +314,23 @@ def resumen_paciente(datos):
                                         seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
                                         RESUMEN DE EXPEDIENTE CLÍNICO
                                           - Presenta la información en una tabla con las columnas: Fecha, Evolución y síntomas, Hallazgos clínicos, Análisis médico y Tratamiento.
-#                                         - Utiliza terminología médica apropiada manteniendo un tono profesional.
-#                                         - Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
+                                          - Utiliza terminología médica apropiada manteniendo un tono profesional.
+                                          - Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
 
-#                                         ESTRUCTURA REQUERIDA:
-#                                         1. Encabezado: Nombre completo, edad y ocupación del paciente
-#                                         2. Motivo de la consulta inicial
-#                                         3. Antecedentes médicos relevantes: Historia médica previa significativa para el caso actual
-#                                         4. Tabla cronológica de consultas que incluya para cada visita:
-#                                         - Fecha exacta
-#                                         - Síntomas reportados (con citas textuales del paciente cuando estén disponibles)
-#                                         - Resumen muy breve de los hallazgos más relevantes durante la consulta
-#                                         - Resumen del análisis médico de la consulta
-#                                         - Plan de tratamiento y recomendaciones
+                                          ESTRUCTURA REQUERIDA:
+                                          1. Encabezado: Nombre completo, edad y ocupación del paciente
+                                          2. Motivo de la consulta inicial
+                                          3. Antecedentes médicos relevantes: Historia médica previa significativa para el caso actual
+                                          4. Tabla cronológica de consultas que incluya para cada visita:
+                                          - Fecha exacta
+                                          - Síntomas reportados (con citas textuales del paciente cuando estén disponibles)
+                                          - Resumen muy breve de los hallazgos más relevantes durante la consulta
+                                          - Resumen del análisis médico de la consulta
+                                          - Plan de tratamiento y recomendaciones
                                           5. Utiliza escritura markdown para resaltar títulos y subtítulos
-#                                         
-#                                         EXPEDIENTE CLÍNICO:
-#                                         {datos}
+                                          
+                                          EXPEDIENTE CLÍNICO:
+                                          {datos}
                                         
                                         GRÁFICAS DE CLINIMETRÍAS
                                         
@@ -435,6 +435,8 @@ def audio_recorder_transcriber(nota: str):
             st.success("Grabación iniciada")
 
     with col2:
+        st.text('')
+        st.text('')
         if st.button("Transcribir...", use_container_width=True, icon='🔮'):
             if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
