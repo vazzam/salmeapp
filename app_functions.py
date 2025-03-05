@@ -428,7 +428,7 @@ def audio_recorder_transcriber(nota: str):
     # Interfaz dentro de la función
     col1, col2 = st.columns(2)
     with col1:
-        audio_value = st.audio_input("Graba una nota de voz", disabled=st.session_state["is_recording"])
+        audio_value = st.audio_input("", disabled=st.session_state["is_recording"])
         if audio_value and not st.session_state["is_recording"]:
             st.session_state["audio_data"] = audio_value
             st.session_state["is_recording"] = True
@@ -438,7 +438,7 @@ def audio_recorder_transcriber(nota: str):
         if st.button("Transcribir...", use_container_width=True, icon='🔮'):
             if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
-                st.success("Grabación detenida")
+                # st.success("Grabación detenida")
                 with st.spinner("Transcribiendo..."):
                     transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
@@ -446,8 +446,8 @@ def audio_recorder_transcriber(nota: str):
                         st.session_state["transcripcion"] = transcripcion
                         st.session_state["audio_data"] = None
 
-    if st.session_state["is_recording"]:
-        st.write("Tomando nota...")
+    # if st.session_state["is_recording"]:
+    #     st.write("Tomando nota...")
 
     return st.session_state["transcripcion"]
 
