@@ -117,7 +117,7 @@ search_scholar = st.checkbox("Buscar en Google Scholar", value=True)
 if st.button("Iniciar búsqueda") and research_question and (search_pubmed or search_scholar):
     # 1. Generar consulta booleana con Gemini
     with st.spinner("Identificando términos clave con Gemini..."):
-        model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+        model = genai.GenerativeModel('gemini-2.0-pro-exp-02-05')
         boolean_query_pubmed = ""
         boolean_query_scholar = ""
         
