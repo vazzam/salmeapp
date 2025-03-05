@@ -109,141 +109,153 @@ research_question = st.text_input("Introduce tu pregunta de investigación o tem
 # Entrada para definir el número de artículos a buscar por fuente
 num_articles = int(st.text_input("Número de artículos a buscar por fuente:", '10'))
 
+# Checkboxes para seleccionar fuentes
+search_pubmed = st.checkbox("Buscar en PubMed", value=True)
+search_scholar = st.checkbox("Buscar en Google Scholar", value=True)
+
 # Botón para iniciar la búsqueda
-if st.button("Iniciar búsqueda") and research_question:
+if st.button("Iniciar búsqueda") and research_question and (search_pubmed or search_scholar):
     # 1. Generar consulta booleana con Gemini
     with st.spinner("Identificando términos clave con Gemini..."):
         model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
-        prompt_terms_pubmed = (f'''
-            Como experto en búsquedas médicas, mejora la siguiente pregunta para PubMed.
-            Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
+        boolean_query_pubmed = ""
+        boolean_query_scholar = ""
+        
+        if search_pubmed:
+            prompt_terms_pubmed = (f'''
+                Como experto en búsquedas médicas, mejora la siguiente pregunta para PubMed.
+                Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
+                
+                Pregunta: '{research_question}'
+            ''')
+            response_terms_pubmed = model.generate_content(prompt_terms_pubmed)
+            boolean_query_pubmed = response_terms_pubmed.text.strip()
+            st.write(f"Consulta PubMed generada: **{boolean_query_pubmed}**")
             
-            Pregunta: '{research_question}'
-        ''')
-        prompt_terms_scholar = (f'''
-            Como experto en búsquedas médicas, mejora la siguiente pregunta para Google Scholar.
-            Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
-            
-            Pregunta: '{research_question}'
-        ''')
-        response_terms_pubmed = model.generate_content(prompt_terms_pubmed)
-        response_terms_scholar = model.generate_content(prompt_terms_scholar)
-        boolean_query_pubmed = response_terms_pubmed.text.strip()
-        boolean_query_scholar = response_terms_scholar.text.strip()
-        st.write(f"Consulta PubMed generada: **{boolean_query_pubmed}**")
-        st.write(f"Consulta Google Scholar generada: **{boolean_query_scholar}**")
+        if search_scholar:
+            prompt_terms_scholar = (f'''
+                Como experto en búsquedas médicas, mejora la siguiente pregunta para Google Scholar.
+                Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
+                
+                Pregunta: '{research_question}'
+            ''')
+            response_terms_scholar = model.generate_content(prompt_terms_scholar)
+            boolean_query_scholar = response_terms_scholar.text.strip()
+            st.write(f"Consulta Google Scholar generada: **{boolean_query_scholar}**")
 
-    # 2. Búsqueda en PubMed
+    # Inicializar listas para combinar resultados
     pubmed_articles_data = []
+    gs_articles_data = []
     pubmed_info_text = ""
-    with st.spinner("Buscando en PubMed..."):
-        try:
-            handle = Entrez.esearch(db="pubmed", term=boolean_query_pubmed, retmax=num_articles, retmode="xml")
-            record = Entrez.read(handle)
+    gs_info_text = ""
 
-            if record["IdList"]:
-                st.success(f"Se encontraron {len(record['IdList'])} artículos en PubMed.")
-                article_ids = record["IdList"]
+    # 2. Búsqueda en PubMed (si está seleccionada)
+    if search_pubmed:
+        with st.spinner("Buscando en PubMed..."):
+            try:
+                handle = Entrez.esearch(db="pubmed", term=boolean_query_pubmed, retmax=num_articles, retmode="xml")
+                record = Entrez.read(handle)
 
-                fetch_handle = Entrez.efetch(db="pubmed", id=article_ids, rettype="medline", retmode="text")
-                medline_records = Medline.parse(fetch_handle)
-                article_counter = 1
+                if record["IdList"]:
+                    st.success(f"Se encontraron {len(record['IdList'])} artículos en PubMed.")
+                    article_ids = record["IdList"]
 
-                for rec in medline_records:
-                    title = rec.get('TI', 'N/A')
-                    abstract = rec.get('AB', 'N/A')
-                    pmid = rec.get('PMID', 'N/A')
-                    
-                    authors = rec.get('AU', [])
-                    publication_date = rec.get('DP', 's.f.')
+                    fetch_handle = Entrez.efetch(db="pubmed", id=article_ids, rettype="medline", retmode="text")
+                    medline_records = Medline.parse(fetch_handle)
+                    article_counter = 1
 
-                    if authors:
-                        if len(authors) > 2:
-                            citation_authors = f"{authors[0]}, et al."
+                    for rec in medline_records:
+                        title = rec.get('TI', 'N/A')
+                        abstract = rec.get('AB', 'N/A')
+                        pmid = rec.get('PMID', 'N/A')
+                        
+                        authors = rec.get('AU', [])
+                        publication_date = rec.get('DP', 's.f.')
+
+                        if authors:
+                            if len(authors) > 2:
+                                citation_authors = f"{authors[0]}, et al."
+                            else:
+                                citation_authors = ", ".join(authors)
                         else:
-                            citation_authors = ", ".join(authors)
+                            citation_authors = "Desconocido"
+                        year = publication_date.split()[0] if publication_date != 's.f.' else "s.f."
+                        apa_citation = f"{citation_authors} ({year}). {title}."
+                        
+                        pubmed_url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid != 'N/A' else 'N/A'
+                        
+                        truncated_abstract = (abstract[:150] + "...") if abstract != "N/A" and len(abstract) > 150 else abstract
+                        
+                        pubmed_articles_data.append({
+                            "Title": title,
+                            "Abstract": truncated_abstract,
+                            "Link": pubmed_url,
+                            "Source": "PubMed"
+                        })
+                        
+                        pubmed_info_text += f"Artículo PubMed {article_counter}:\n"
+                        pubmed_info_text += f"Cita APA: {apa_citation}\n"
+                        pubmed_info_text += f"Abstract: {abstract}\n\n"
+                        article_counter += 1
+                        
+                    fetch_handle.close()
+                else:
+                    st.warning("No se encontraron artículos en PubMed para la consulta generada.")
+            except Exception as e:
+                st.error(f"Ocurrió un error durante la búsqueda en PubMed: {e}")
+            finally:
+                if 'handle' in locals():
+                    handle.close()
+
+    # 3. Búsqueda en Google Scholar (si está seleccionada)
+    if search_scholar:
+        with st.spinner("Buscando en Google Scholar..."):
+            try:
+                gs_search = scholarly.search_pubs(boolean_query_scholar)
+                for i in range(num_articles):
+                    try:
+                        pub = next(gs_search)
+                    except StopIteration:
+                        break
+                    bib = pub.get('bib', {})
+                    title = bib.get('title', 'N/A')
+                    abstract = bib.get('abstract', 'N/A')
+
+                    authors_field = bib.get('author', 'Desconocido')
+                    if isinstance(authors_field, list):
+                        authors_list = authors_field
                     else:
-                        citation_authors = "Desconocido"
-                    year = publication_date.split()[0] if publication_date != 's.f.' else "s.f."
+                        authors_list = authors_field.split(', ')
+
+                    if len(authors_list) > 2:
+                        citation_authors = f"{authors_list[0]}, et al."
+                    else:
+                        citation_authors = ", ".join(authors_list)
+                    year = bib.get('pub_year', 's.f.')
                     apa_citation = f"{citation_authors} ({year}). {title}."
-                    
-                    pubmed_url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid != 'N/A' else 'N/A'
-                    
+                    gs_url = pub.get('pub_url', 'N/A')
                     truncated_abstract = (abstract[:150] + "...") if abstract != "N/A" and len(abstract) > 150 else abstract
-                    
-                    pubmed_articles_data.append({
+
+                    gs_articles_data.append({
                         "Title": title,
                         "Abstract": truncated_abstract,
-                        "Link": pubmed_url,
-                        "Source": "PubMed"
+                        "Link": gs_url,
+                        "Source": "Google Scholar"
                     })
-                    
-                    pubmed_info_text += f"Artículo PubMed {article_counter}:\n"
-                    pubmed_info_text += f"Cita APA: {apa_citation}\n"
-                    pubmed_info_text += f"Abstract: {abstract}\n\n"
-                    article_counter += 1
-                    
-                fetch_handle.close()
-            else:
-                st.warning("No se encontraron artículos en PubMed para la consulta generada.")
-        except Exception as e:
-            st.error(f"Ocurrió un error durante la búsqueda en PubMed: {e}")
-        finally:
-            if 'handle' in locals():
-                handle.close()
 
-    # 3. Búsqueda en Google Scholar
-    gs_articles_data = []
-    gs_info_text = ""
-    with st.spinner("Buscando en Google Scholar..."):
-        try:
-            gs_search = scholarly.search_pubs(boolean_query_scholar)
-            for i in range(num_articles):
-                try:
-                    pub = next(gs_search)
-                except StopIteration:
-                    break
-                bib = pub.get('bib', {})
-                title = bib.get('title', 'N/A')
-                abstract = bib.get('abstract', 'N/A')  # Puede que no siempre esté disponible
-
-                # Manejo del campo de autores que puede ser una lista o una cadena
-                authors_field = bib.get('author', 'Desconocido')
-                if isinstance(authors_field, list):
-                    authors_list = authors_field
+                    gs_info_text += f"Artículo Google Scholar {i+1}:\n"
+                    gs_info_text += f"Cita APA: {apa_citation}\n"
+                    gs_info_text += f"Abstract: {abstract}\n\n"
+                if gs_articles_data:
+                    st.success(f"Se encontraron {len(gs_articles_data)} artículos en Google Scholar.")
                 else:
-                    authors_list = authors_field.split(', ')
+                    st.warning("No se encontraron artículos en Google Scholar para la consulta generada.")
+            except Exception as e:
+                st.error(f"Ocurrió un error durante la búsqueda en Google Scholar: {e}")
 
-                if len(authors_list) > 2:
-                    citation_authors = f"{authors_list[0]}, et al."
-                else:
-                    citation_authors = ", ".join(authors_list)
-                year = bib.get('pub_year', 's.f.')
-                apa_citation = f"{citation_authors} ({year}). {title}."
-                gs_url = pub.get('pub_url', 'N/A')
-                truncated_abstract = (abstract[:150] + "...") if abstract != "N/A" and len(abstract) > 150 else abstract
-
-                gs_articles_data.append({
-                    "Title": title,
-                    "Abstract": truncated_abstract,
-                    "Link": gs_url,
-                    "Source": "Google Scholar"
-                })
-
-                gs_info_text += f"Artículo Google Scholar {i+1}:\n"
-                gs_info_text += f"Cita APA: {apa_citation}\n"
-                gs_info_text += f"Abstract: {abstract}\n\n"
-            if gs_articles_data:
-                st.success(f"Se encontraron {len(gs_articles_data)} artículos en Google Scholar.")
-            else:
-                st.warning("No se encontraron artículos en Google Scholar para la consulta generada.")
-        except Exception as e:
-            st.error(f"Ocurrió un error durante la búsqueda en Google Scholar: {e}")
-
-
-    # 4. Combinar la información de ambas fuentes
-    all_articles_data = pubmed_articles_data #+ gs_articles_data
-    articles_info_text = pubmed_info_text #+ gs_info_text
+    # 4. Combinar la información de las fuentes seleccionadas
+    all_articles_data = pubmed_articles_data + gs_articles_data
+    articles_info_text = pubmed_info_text + gs_info_text
 
     if articles_info_text:
         # 5. Generar resumen consolidado con Gemini
@@ -251,7 +263,7 @@ if st.button("Iniciar búsqueda") and research_question:
             prompt_summary = (f'''
                             Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te dare.
                             1. Elabora un resumen detallado que responda a la siguiente pregunta de investigación: {research_question}. 
-                            2. Integra de manera natural en el texto las citas bibliográficas en formato Harvard. 
+                            2. Integra de manera natural en el texto las citas bibliográficas en formato numérico Vancouver. 
                             3. La respuesta debe estar en español, con una redacción y formato adecuados para una conversión óptima a voz mediante gTTS. 
                             4. IMPORTANTE: No incluyas comentarios adicionales ni secciones de referencias.
                             
@@ -264,7 +276,7 @@ if st.button("Iniciar búsqueda") and research_question:
             
         st.subheader("Resumen Consolidado")
         summary_text = response_summary.text
-        st.markdown(summary_text,  unsafe_allow_html = True)
+        st.markdown(summary_text, unsafe_allow_html=True)
         
         # 🔊 Generar audio del resumen
         with st.spinner("🔊 Generando audio del resumen..."):
@@ -273,10 +285,8 @@ if st.button("Iniciar búsqueda") and research_question:
             tts.save(audio_path)
             st.audio(audio_path, format="audio/mp3")
 
-        # Guardar la información de artículos en la sesión para consultas adicionales
+        # Guardar la información de artículos en la sesión
         st.session_state["articles_info_text"] = articles_info_text
-
-
     else:
         st.warning("No se pudo generar información de artículos para el resumen.")
 
@@ -298,8 +308,11 @@ if "articles_info_text" in st.session_state:
         st.subheader("Respuesta Adicional")
         followup_text = response_followup.text
         st.write(followup_text)
-    st.subheader("Bibliografía")
-    st.table(all_articles_data)
+    try:
+        st.subheader("Bibliografía")
+        st.table(all_articles_data)
+    except:
+        pass
         # # Generar audio de la respuesta adicional
         # with st.spinner("Generando audio de la respuesta adicional..."):
         #     tts_followup = gTTS(text=followup_text, lang="es")
