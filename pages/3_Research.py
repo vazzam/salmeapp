@@ -259,7 +259,7 @@ if st.button("Iniciar búsqueda") and research_question:
 
                             {articles_info_text}'''
             )
-            model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+            model = genai.GenerativeModel('gemini-2.0-flash')
             response_summary = model.generate_content(prompt_summary)
             
         st.subheader("Resumen Consolidado")
@@ -298,11 +298,12 @@ if "articles_info_text" in st.session_state:
         st.subheader("Respuesta Adicional")
         followup_text = response_followup.text
         st.write(followup_text)
-st.subheader("Bibliografía")
-st.table(all_articles_data)
+    st.subheader("Bibliografía")
+    st.table(all_articles_data)
         # # Generar audio de la respuesta adicional
         # with st.spinner("Generando audio de la respuesta adicional..."):
         #     tts_followup = gTTS(text=followup_text, lang="es")
         #     audio_followup_path = "respuesta_audio.mp3"
         #     tts_followup.save(audio_followup_path)
         #     st.audio(audio_followup_path, format="audio/mp3")
+
