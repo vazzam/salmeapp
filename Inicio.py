@@ -1,14 +1,9 @@
 import altair as alt
 import streamlit as st
 import pandas as pd
-import numpy as np
 import time
 from datetime import date, datetime 
-import pandas as pd
-from dateutil.relativedelta import relativedelta # to add days or years
 from fdfgen import forge_fdf
-from PyPDF2 import PdfFileReader, PdfFileWriter
-import pdfrw
 from fillpdf import fillpdfs
 import os
 from streamlit_timeline import timeline
@@ -16,15 +11,7 @@ import boto3
 import functions as fx
 import ex_mental as em
 import random
-from pyfiscal.generate import GenerateRFC, GenerateCURP, GenerateNSS, GenericGeneration
 import app_functions as afx
-import pymongo
-from pymongo import MongoClient
-import pyaudio
-import wave
-import threading
-import io
-from openai import OpenAI
 from streamlit.components.v1 import html
 from pathlib import Path
 
@@ -34,6 +21,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
 
 def get_base64_image(image_path):
     import base64
