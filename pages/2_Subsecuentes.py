@@ -1,33 +1,112 @@
-import altair as alt
+
 import streamlit as st
 import pandas as pd
-import numpy as np
-import time
 from datetime import date, datetime 
 import pandas as pd
-from dateutil.relativedelta import relativedelta # to add days or years
 from fdfgen import forge_fdf
-from PyPDF2 import PdfFileReader, PdfFileWriter
-import pdfrw
-from fillpdf import fillpdfs
 import os
 from streamlit_timeline import timeline
 import boto3
 import functions as fx
 import ex_mental as em
 import random
-from pyfiscal.generate import GenerateRFC, GenerateCURP, GenerateNSS, GenericGeneration
 import app_functions as afx
 import pymongo
 from pymongo import MongoClient
 import re
+from pathlib import Path
+from streamlit.components.v1 import html
 
 st.set_page_config(
     page_title=" Subsecuentes",
     page_icon="fav.png",  # EP: how did they find a symbol?
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
+def get_base64_image(image_path):
+    import base64
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+logo_path = Path('vitalia.png')
+
+if logo_path.exists():
+    logo_base64 = get_base64_image(logo_path)
+else:
+    logo_base64 = ""  # Si no hay logo, usa una cadena vacía o placeholder
+    st.warning("Logotipo no encontrado en la ruta especificada.")
+
+def load_css():
+    with open('style.css', 'r') as f:
+        css = f.read()
+    st.markdown(f'<style>{css}</style>', unsafe_allow_html=True)
+
+def load_js():
+    with open('javascript.js', 'r') as f:
+        js = f.read()
+    st.markdown(f'<style>{js}</style>', unsafe_allow_html=True)
+
+# Llama a la función al principio de tu app
+load_css()
+
+# load_js()
+# st.markdown("""
+#     <div class="app-header">
+#         <h1>Historia clínica</h1>
+#     </div>
+# """, unsafe_allow_html=True)
+
+st.markdown(f"""
+    <div class="app-header">
+        <div class="logo-container">
+            <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+        </div>
+        
+    </div>
+    <script>
+        window.addEventListener('scroll', function() {{
+            const header = document.querySelector('.app-header');
+            const app = document.querySelector('.stApp');
+            if (window.scrollY > 50) {{
+                header.classList.add('scrolled');
+                app.classList.add('scrolled');
+            }} else {{
+                header.classList.remove('scrolled');
+                app.classList.remove('scrolled');
+            }}
+        }});
+    </script>
+""", unsafe_allow_html=True)
+st.markdown('<div class="title-container"><h1>Nota subsecuente</h1>', unsafe_allow_html=True)
+
+header_html = f"""
+<div class="app-header">
+        <div class="logo-container">
+            <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+        </div>
+    <div class="header-icon-container">
+        <!-- Botón Home -->
+        <a href="/" class="icon-button" target="_self">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+        </a>
+        <!-- Botón Consulta Subsecuente -->
+        <a href="Subsecuentes" class="icon-button" target="_self">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 16H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7V9h10v2z"/>
+            </svg>
+        </a>
+        <!-- Botón Búsqueda IA -->
+        <a href="/Research" class="icon-button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+        </a>
+    </div>
+</div>
+"""
+st.markdown(header_html, unsafe_allow_html=True)
+
 
 uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
 client = MongoClient(uri)
@@ -49,11 +128,11 @@ date = date.strftime("%d/%m/%Y %H:%M")
 if 'ta' not in st.session_state:
     st.session_state.ta = ''
 
-main_col1, main_col2 = st.columns([0.05,0.95])
-with main_col1:
-    main_img = st.image('brain.png',width=50)
-with main_col2:
-    "# Notas subsecuentes"
+# main_col1, main_col2 = st.columns([0.05,0.95])
+# with main_col1:
+#     main_img = st.image('brain.png',width=50)
+# with main_col2:
+#     "# Notas subsecuentes"
 
 b_col4, b_col5, b_col6= st.columns([0.33,0.33,0.33])
 
@@ -124,9 +203,8 @@ if st.session_state.bus_nombre != '':
             st.text('No se encontró registro del paciente')
             st.stop()
 
+        current_patient = str(paciente[0])
         # st.text(paciente[0])
-        # summary = afx.chatgpt(paciente[0], 150, model = 'chat')
-        # st.text(summary)
 
         st.subheader(paciente[0]['nombres'] + ' ' + paciente[0]['primer apellido'] + ' ' + paciente[0]['segundo apellido'])
         fecha = paciente[0]['fecha']
@@ -468,11 +546,26 @@ if st.session_state.bus_nombre != '':
     # BÚSQUEDA Y SELECCIÓN DE CONSULTAS PREVIAS
     #===========================================================================================
 
-        consultas_previas = len(paciente[0]['consultas'])
+    consultas_previas = len(paciente[0]['consultas'])
     # st.write(consultas_previas)
     notes_no = afx.note_show(consultas_previas, paciente, primera_consulta)
+    st.subheader('Historial del paciente')
+    generar_resumen = st.button('Generar Resumen', icon='🤖')
+    if generar_resumen:
+            summary, graph_code = afx.resumen_paciente(current_patient)
+            # st.text(summary)
+            st.markdown(summary)
+            html(graph_code, height=500, scrolling=True)
+    st.markdown('---')
+    st.subheader('Pregunta sobre tu paciente')
+    chat_exp = st.text_input('')
+    preguntar = st.button('Preguntar', icon='🤔')
+    if preguntar:
+        respuesta_chat = afx.chat_expediente(chat_exp, current_patient)
+        st.markdown(respuesta_chat)
 
-
+        # st.markdown(respuesta_chat, unsafe_allow_html=True)
+    transcripcion = afx.audio_recorder_transcriber('subsecuente')
     nota_evol = st.form('nota_evol')
     with nota_evol:
 
@@ -498,7 +591,7 @@ if st.session_state.bus_nombre != '':
             presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {nota_dx_pres} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {ultima_consulta} y esquema de tratamiento: {nota_tx_pres}')
         else:
             presentacion = st.text_area('Presentación', f'{gen} de {edad_pres} años con diagnóstico previo de {temp_dx} con {consultas_previas} consulta(s) previa(s) siendo la última el pasado {fecha_consulta_1} y esquema de tratamiento: {temp_re_tx}')
-        subjetivo = st.text_area('Subjetivo')
+        subjetivo = st.text_area('Subjetivo', transcripcion)
         st.subheader('Somatometría y signos vitales')
         col72, col73, col74, col75, col76, col77 = st.columns([0.15,0.15,0.15,0.15,0.15,0.15])
         with col72:
@@ -558,7 +651,7 @@ if st.session_state.bus_nombre != '':
         else:
             plan = st.text_area('Plan', re_tx)
 
-        dx_button = st.form_submit_button('Guardar cambios')
+        dx_button = st.form_submit_button('Guardar nota')
         if dx_button:
             nva_nota = {'fecha': date,
                         'presentacion':presentacion,
