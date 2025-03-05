@@ -20,6 +20,13 @@ from pyfiscal.generate import GenerateRFC, GenerateCURP, GenerateNSS, GenericGen
 import app_functions as afx
 import pymongo
 from pymongo import MongoClient
+import pyaudio
+import wave
+import threading
+import io
+from openai import OpenAI
+from streamlit.components.v1 import html
+from pathlib import Path
 
 st.set_page_config(
     page_title=" Historia Clínica",
@@ -27,18 +34,65 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-# uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
-# client = MongoClient(uri)
-# db = client['expedinente_electronico'] #base de datos
-# pacientes = db['pacientes'] #colección
-# afx.ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
 
-# pacientes = afx.mongo_initial()
+def get_base64_image(image_path):
+    import base64
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+logo_path = Path('vitalia.png')
+
+if logo_path.exists():
+    logo_base64 = get_base64_image(logo_path)
+else:
+    logo_base64 = ""  # Si no hay logo, usa una cadena vacía o placeholder
+    st.warning("Logotipo no encontrado en la ruta especificada.")
+
+def load_css():
+    with open('style.css', 'r') as f:
+        css = f.read()
+    st.markdown(f'<style>{css}</style>', unsafe_allow_html=True)
+
+def load_js():
+    with open('javascript.js', 'r') as f:
+        js = f.read()
+    st.markdown(f'<style>{js}</style>', unsafe_allow_html=True)
+
+# Llama a la función al principio de tu app
+load_css()
+
+# load_js()
+# st.markdown("""
+#     <div class="app-header">
+#         <h1>Historia clínica</h1>
+#     </div>
+# """, unsafe_allow_html=True)
+
+st.markdown(f"""
+    <div class="app-header">
+        <div class="logo-container">
+            <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+        </div>
+        
+    </div>
+    <script>
+        window.addEventListener('scroll', function() {{
+            const header = document.querySelector('.app-header');
+            const app = document.querySelector('.stApp');
+            if (window.scrollY > 50) {{
+                header.classList.add('scrolled');
+                app.classList.add('scrolled');
+            }} else {{
+                header.classList.remove('scrolled');
+                app.classList.remove('scrolled');
+            }}
+        }});
+    </script>
+""", unsafe_allow_html=True)
+st.markdown('<div class="title-container"><h1>Historia Clínica</h1>', unsafe_allow_html=True)
+
 
 s3 = boto3.client('s3')
 dsm_path = '/home/vazzam/Documentos/SALME_app/DSM_5.pdf'
-
-
 
 path_folder = os.getcwd()+'/tmp/'
 municipios = pd.read_csv('./data/mx.csv')
@@ -46,38 +100,253 @@ pdf_template = './data/HC_SALME_python.pdf'
 renglon = '\n'
 date = datetime.now()
 date = date.strftime("%d/%m/%Y %H:%M")
-
-# st.markdown(
-# """
-# <style>
-# [data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
-# width: 600px;
-# }
-# [data-testid="stSidebar"][aria-expanded="false"] > div:first-child {
-# width: 600px;
-# margin-left: -600px;
-# }
-# </style>
-# """,
-# unsafe_allow_html=True
-# )
-
-
+header_html = f"""
+<div class="app-header">
+        <div class="logo-container">
+            <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+        </div>
+    <div class="header-icon-container">
+        <!-- Botón Home -->
+        <a href="/" class="icon-button" target="_self">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+        </a>
+        <!-- Botón Consulta Subsecuentes -->
+        <a href="/Subsecuentes" class="icon-button" target="_self">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 16H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7V9h10v2z"/>
+            </svg>
+        </a>
+        <!-- Botón Búsqueda IA -->
+        <a href="/Research" class="icon-button">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+        </a>
+    </div>
+</div>
+"""
+st.markdown(header_html, unsafe_allow_html=True)
 if 'ta' not in st.session_state:
     st.session_state.ta = ''
 
-with st.sidebar:
 
-    escalas_expander = st.expander('Clinimetrías')
-    with escalas_expander:
-        escala_selected = st.selectbox('Selecciona la escala:',afx.stored_data('escalas'), key=342342)
-        fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+# --- Inicialización de st.session_state ---
 
-main_col1, main_col2 = st.columns([0.05,0.95])
-with main_col1:
-    main_img = st.image('brain.png',width=50)
-with main_col2:
-    "# Historia clínica de psiquiatría"
+# Ficha de Identificación
+if 'curp' not in st.session_state:
+    st.session_state.curp = ''  # CURP deshabilitado
+if 'no_expediente' not in st.session_state:
+    st.session_state.no_expediente = ''
+if 'date' not in st.session_state:
+    st.session_state.date = datetime.now().strftime("%d/%m/%Y %H:%M")  # Fecha actual por defecto
+if 'nombre' not in st.session_state:
+    st.session_state.nombre = ''
+if 'apellido_paterno' not in st.session_state:
+    st.session_state.apellido_paterno = ''
+if 'apellido_materno' not in st.session_state:
+    st.session_state.apellido_materno = ''
+if 'sexo' not in st.session_state:
+    st.session_state.sexo = 'Hombre'  # Valor por defecto
+if 'f_nacimiento' not in st.session_state:
+    st.session_state.f_nacimiento = '11/01/2000'  # Fecha por defecto (string)
+if 'f_nacimiento_str' not in st.session_state:  # Para guardar la fecha como string
+    st.session_state.f_nacimiento_str = ''
+if 'edad' not in st.session_state:
+    st.session_state.edad = '' # String vacio. Se calcula despues
+if 'ciudades' not in st.session_state:
+    st.session_state.ciudades = ''  # O un valor por defecto si tienes una lista de ciudades
+if 'edo_nac' not in st.session_state:
+    st.session_state.edo_nac = ''   # O un valor por defecto
+if 'tipo_vialidad' not in st.session_state:
+    st.session_state.tipo_vialidad = 'Calle'  # Valor por defecto
+if 'dom_vialidad' not in st.session_state:
+    st.session_state.dom_vialidad = ''
+if 'dom_no_ext' not in st.session_state:
+    st.session_state.dom_no_ext = ''
+if 'dom_no_int' not in st.session_state:
+    st.session_state.dom_no_int = ''
+if 'cp' not in st.session_state:
+    st.session_state.cp = ''
+if 'dom_tipo_asentamiento' not in st.session_state:
+    st.session_state.dom_tipo_asentamiento = 'Colonia' # Valor por defecto
+if 'dom_asentamiento' not in st.session_state:
+    st.session_state.dom_asentamiento = ''
+if 'dom_cd' not in st.session_state:
+    st.session_state.dom_cd = '' # O un valor por defecto.
+if 'dom_edo' not in st.session_state:
+    st.session_state.dom_edo = ''  # O un valor por defecto.
+if 'escolaridad' not in st.session_state:
+    st.session_state.escolaridad = 'Ninguna' # Valor por defecto
+if 'edo_civil' not in st.session_state:
+    st.session_state.edo_civil = 'Soltero' # Valor por defecto
+if 'religion' not in st.session_state:
+    st.session_state.religion = 'católica'# Valor por defecto
+if 'ocupacion' not in st.session_state:
+    st.session_state.ocupacion = ''
+if 'trabajo' not in st.session_state:
+    st.session_state.trabajo = 'Empleado'  # Valor por defecto
+if 'etnia' not in st.session_state:
+     st.session_state.etnia = 'mestizo'
+if 'seg_social' not in st.session_state:
+    st.session_state.seg_social = 'NINGUNA'  # Valor por defecto
+if 'referido' not in st.session_state:
+    st.session_state.referido = 'no referido'  # Valor por defecto
+if 'inst_ref' not in st.session_state:
+    st.session_state.inst_ref = ''
+if 'responsable_nombre' not in st.session_state:
+    st.session_state.responsable_nombre = ''
+if 'responsable_tel' not in st.session_state:
+    st.session_state.responsable_tel = ''
+if 'responsable_parentesco' not in st.session_state:
+    st.session_state.responsable_parentesco = ''
+
+
+# Motivo de Consulta y Padecimiento Actual
+if 'mc' not in st.session_state:
+    st.session_state.mc = ''
+# Antecedentes Personales No Patológicos
+if 'apnp_vive_con' not in st.session_state:
+    st.session_state.apnp_vive_con = ''
+if 'apnp_tipo_vivienda' not in st.session_state:
+    st.session_state.apnp_tipo_vivienda = 'casa'
+if 'apnp_medio_vivienda' not in st.session_state:
+    st.session_state.apnp_medio_vivienda = 'urbano'
+if 'apnp_vivienda_servicios' not in st.session_state:
+    st.session_state.apnp_vivienda_servicios = 'con agua, luz y drenaje'
+if 'apnp_no_comidas' not in st.session_state:
+    st.session_state.apnp_no_comidas = '3'
+if 'apnp_cal_comidas' not in st.session_state:
+    st.session_state.apnp_cal_comidas = 'buena'
+if 'apnp_agua' not in st.session_state:
+    st.session_state.apnp_agua = 'adecuado'
+if 'apnp_ejercicio' not in st.session_state:
+    st.session_state.apnp_ejercicio = 'nula'
+if 'apnp_baño' not in st.session_state:
+    st.session_state.apnp_baño = 'diario'
+if 'apnp_sexual' not in st.session_state:
+    st.session_state.apnp_sexual = 'heterosexual'
+if 'apnp_viajes' not in st.session_state:
+    st.session_state.apnp_viajes = ''
+if 'apnp_animales' not in st.session_state:
+    st.session_state.apnp_animales = ''
+if 'apnp_exposicion' not in st.session_state:
+    st.session_state.apnp_exposicion = ''
+if 'apnp_tatuajes' not in st.session_state:
+    st.session_state.apnp_tatuajes = ''
+if 'apnp_vacunas' not in st.session_state:
+    st.session_state.apnp_vacunas = ''
+if 'apnp_ago' not in st.session_state:  # AGO / Ant. Sexuales
+    st.session_state.apnp_ago = ''
+if 'apnp_anexo_hosp' not in st.session_state:
+    st.session_state.apnp_anexo_hosp = ""
+
+# Interrogatorio por Aparato y Sistemas
+if 'ipas' not in st.session_state:
+    st.session_state.ipas = ''
+
+# Consumo de Sustancias
+if 'sust_tabaco' not in st.session_state:
+    st.session_state.sust_tabaco = ''
+if 'sust_alcohol' not in st.session_state:
+    st.session_state.sust_alcohol = ''
+if 'sust_cannabis' not in st.session_state:
+    st.session_state.sust_cannabis = ''
+if 'sust_cocaina' not in st.session_state:
+    st.session_state.sust_cocaina = ''
+if 'sust_cristal' not in st.session_state:
+    st.session_state.sust_cristal = ''
+if 'sust_solventes' not in st.session_state:
+    st.session_state.sust_solventes = ''
+if 'sust_alucinogenos' not in st.session_state:
+    st.session_state.sust_alucinogenos = ''
+if 'sust_otras' not in st.session_state:
+    st.session_state.sust_otras = ''
+if 'labs_prev' not in st.session_state:
+    st.session_state.labs_prev = ""
+
+# Exploración Física
+if 'ef_somatotipo' not in st.session_state:
+    st.session_state.ef_somatotipo = 'mesomorfo'
+if 'ef_apariencia' not in st.session_state:
+    st.session_state.ef_apariencia = 'buen'
+if 'ef_hidratacion' not in st.session_state:
+    st.session_state.ef_hidratacion = 'buen'
+if 'ef_color' not in st.session_state:
+    st.session_state.ef_color = 'normal'
+if 'peso' not in st.session_state:
+    st.session_state.peso = 0.0 # Usar float para peso
+if 'talla' not in st.session_state:
+    st.session_state.talla = 0.0  # Usar float para talla
+if 'imc' not in st.session_state:
+    st.session_state.imc = 0.0 #Calculado
+if 'ta' not in st.session_state:
+    st.session_state.ta = ''
+if 'fc' not in st.session_state:
+    st.session_state.fc = ''
+if 'fr' not in st.session_state:
+    st.session_state.fr = ''
+if 'temp' not in st.session_state:
+    st.session_state.temp = ''
+
+if 'alt_cabeza' not in st.session_state:
+    st.session_state.alt_cabeza = ""
+if 'alt_abdomen' not in st.session_state:
+    st.session_state.alt_abdomen = ""
+if 'alt_cuello' not in st.session_state:
+    st.session_state.alt_cuello = ""
+if 'alt_extremidades_sup' not in st.session_state:
+    st.session_state.alt_extremidades_sup = ""
+if 'alt_cardio' not in st.session_state:
+    st.session_state.alt_cardio = ""
+if 'alt_extremidades_inf' not in st.session_state:
+    st.session_state.alt_extremidades_inf = ""
+if 'alt_genitales' not in st.session_state:
+    st.session_state.alt_genitales = ""
+if 'alt_otras' not in st.session_state:
+    st.session_state.alt_otras = ""
+
+# Examen Mental
+if 'examen_mental' not in st.session_state:
+     st.session_state.examen_mental = ""
+
+# Diagnósticos, Pronóstico, Clinimetría, Tratamiento, Análisis
+#   Se inicializan dentro de sus respectivos formularios.  Buena práctica.
+if 'gaf' not in st.session_state:
+    st.session_state.gaf = ""
+if 'phq9' not in st.session_state:
+    st.session_state.phq9 = ""
+if 'gad7' not in st.session_state:
+    st.session_state.gad7 = ""
+if 'sadpersons' not in st.session_state:
+    st.session_state.sadpersons = ""
+if 'young' not in st.session_state:
+    st.session_state.young = ""
+if 'mdq' not in st.session_state:
+    st.session_state.mdq = ""
+if 'asrs' not in st.session_state:
+    st.session_state.asrs = ""
+if 'otras_clini' not in st.session_state:
+    st.session_state.otras_clini = ""
+if 'pronostico' not in st.session_state:
+    st.session_state.pronostico = ""
+if 'labs_nvos' not in st.session_state:
+    st.session_state.labs_nvos = ""
+if 'analisis' not in st.session_state:
+    st.session_state.analisis = ""
+    
+
+
+
+# with st.sidebar:
+
+#     escalas_expander = st.expander('Clinimetrías')
+#     with escalas_expander:
+#         escala_selected = st.selectbox('Selecciona la escala:',afx.stored_data('escalas'), key=342342)
+#         fx.displayPDF(f'./data/clinimetrias/{escala_selected}')
+
+
 
 ficha_ID = st.form('ficha_ID')
 with ficha_ID:
@@ -126,8 +395,13 @@ with ficha_ID:
         # st.session_state.f_nacimiento = st.date_input("Fecha de nacimiento aaaa/mm/dd:",dt.datetime(1980,11,2),key='f_nacimiento_2')
         st.session_state.f_nacimiento = st.text_input('Fecha de nacimiento (dd/mm/yyyy): ', '11/01/2000',key='f_nac')
         # st.date_input('fecha', format="DD.MM.YY")
+        # For date validation
         if len(st.session_state.f_nacimiento) != 10:
-            st.warning('EL FORMATO DE LA FECHA DE NACIEMIENTO ES INCORRECTO, RECUERDA EL FORMATO dd/mm/yyyy ej. 02/12/1989')
+            st.markdown("""
+            <div style="background-color: #FEE2E2; padding: 1rem; border-radius: 0.5rem; color: #991B1B;">
+                <strong>Error:</strong> El formato de la fecha de nacimiento es incorrecto. Utilice el formato dd/mm/yyyy (ej. 02/12/1989). Actualiza la app y reintenta
+            </div>
+            """, unsafe_allow_html=True)
             st.stop()
         st.session_state.f_nacimiento = datetime.strptime(st.session_state.f_nacimiento, '%d/%m/%Y')
         temp_date = st.session_state.f_nacimiento
@@ -244,11 +518,11 @@ with ficha_ID:
     if form_ID_button:
         date_chr = len(st.session_state.f_nacimiento)#.split("/")
         st.success('Se han guardado los cambios')
-
+transcripcion = afx.audio_recorder_transcriber('primera')
 #=====================================================================================================
-
-antecedentes_form = st.form('antecedentes_form')
-with antecedentes_form:
+# transcripcion = afx.audio_recorder_transcriber()
+iepa_form = st.form('iepa_form')
+with iepa_form:
 
     st.header('Motivo de consulta')
     mc_consulta = st.expander('La razón por la que acuden a valoración')
@@ -258,7 +532,15 @@ with antecedentes_form:
     st.header('Padecimiento actual')
     padecimiento = st.expander('Inicio, curso, tendencia, desencadenantes, agravantes, síntomas clave, síntomas actuales')
     with padecimiento:
-        pepa = st.text_area('',height=200)
+        
+        pepa = st.text_area('', transcripcion, height=200)
+    iepa_form_button = st.form_submit_button('Guarde el padecimiento actual')
+    if iepa_form_button:
+        st.success('Se han guardado los cambios')
+
+        
+antecedentes_form = st.form('antecedentes_form')
+with antecedentes_form:          
 
     st.header('Antecedentes Heredo Familiares')
 
@@ -280,16 +562,16 @@ with antecedentes_form:
         col35, col36, col37 = st.columns([0.3,0.3,0.4])
 
         with col35:
-            ahf_hermanos = st.text_area('Hermanos: ','antecedentes patológicos negados',height=50,key='Hermanos')
+            ahf_hermanos = st.text_area('Hermanos: ','antecedentes patológicos negados',height=70,key='Hermanos')
         with col36:
-            ahf_hijos = st.text_area('Hijos:','antecedentes patológicos negados',height=50,key='Hijos')
+            ahf_hijos = st.text_area('Hijos:','antecedentes patológicos negados',height=70,key='Hijos')
         with col37:
-            ahf_otros = st.text_area('Otros:','antecedentes patológicos negados',height=50,key='Otros')
+            ahf_otros = st.text_area('Otros:','antecedentes patológicos negados',height=70,key='Otros')
 
 
 
         st.subheader('Antecedentes Familiares Psiquiátricos')
-        ahf_psiquiatricos = st.text_area('','Negados',key='fam_psiq', height=30)    
+        ahf_psiquiatricos = st.text_area('','Negados',key='fam_psiq', height=70)    
         if ahf_edad_padre == '':
             padre_merge = f'Padre {ahf_padre} de edad no referida: {ahf_padre_ant}'
         else:
@@ -308,27 +590,27 @@ with antecedentes_form:
     with APP:
         col38, col39, col40 = st.columns([0.33,0.33,0.33])
         with col38:
-            app_alergias = st.text_area('Alergias','Negadas', height=20, key='Alergias')
+            app_alergias = st.text_area('Alergias','Negadas', height=70, key='Alergias')
         with col39:
-            app_qx = st.text_area('Cirugías/Fracturas','Negadas', height=20, key='qx_fx')
+            app_qx = st.text_area('Cirugías/Fracturas','Negadas', height=70, key='qx_fx')
         with col40:
-            app_tce = st.text_area('TCE/Convulsiones','Negados', height=20, key='tec_conv')
+            app_tce = st.text_area('TCE/Convulsiones','Negados', height=70, key='tec_conv')
 
         col41,  col42, col43 = st.columns([0.33,0.33,0.33])
         with col41:
-            app_transfusiones = st.text_area('Transfusiones','Negadas',height=20, key='Transusiones')
+            app_transfusiones = st.text_area('Transfusiones','Negadas',height=70, key='Transusiones')
         with col42:
-            app_infecciosas = st.text_area('Enfermedades Infecciosas','Negadas',height=20, key='Infecciosas')
+            app_infecciosas = st.text_area('Enfermedades Infecciosas','Negadas',height=70, key='Infecciosas')
         with col43:
-            app_cronicas = st.text_area('Enfermedades Crónico-degenerativas','Negadas',height=20, key='cronicas')
+            app_cronicas = st.text_area('Enfermedades Crónico-degenerativas','Negadas',height=70, key='cronicas')
 
         col44, col45 = st.columns([0.5,0.5])
 
         with col44:
-            app_otras = st.text_area('Otras','Negadas',height=20,key='Otras')
+            app_otras = st.text_area('Otras','Negadas',height=70,key='Otras')
 
         with col45:
-            app_medicamentos = st.text_area('Medicamentos','Negados',height=20,key='Medicamentos')
+            app_medicamentos = st.text_area('Medicamentos','Negados',height=70,key='Medicamentos')
 
 
         st.subheader('Antecedentes Personales Psiquiátricos')
@@ -461,11 +743,11 @@ with antecedentes_form:
         st.subheader('Somatometría y signos vitales')
         col72, col73, col74, col75, col76, col77 = st.columns([0.15,0.15,0.15,0.15,0.15,0.15])
         with col72:
-            peso = st.number_input('Peso (kg)',key=710)
+            peso = float(st.text_input('Peso (kg)','0.0',key=710))
             
 
         with col73:
-            talla = st.number_input('Talla (cm)',key=712)
+            talla = float(st.text_input('Talla (cm)','0.0',key=712))
 
 
         with col74:
@@ -510,55 +792,6 @@ with antecedentes_form:
         with col_otras:
             alt_otras = st.text_input('Otras', key=1478012)
 
-
-
-
-        # col78, col79, col80, col81, col82, col83  = st.columns([0.05,0.2,0.05,0.2,0.05,0.2])
-        
-        # alteraciones_arr = ['No', 'Sí']
-
-        # cabeza_options = ['cabeza_no','cabeza_si']
-        # cuello_options = ['cuello_no','cuello_si']   
-        # cardio_options = ['cardio_no','cardio_si']        
-        # abdomen_options = ['abdomen_no','abdomen_si']        
-        # brazos_options = ['brazos_no','brazos_si']       
-        # piernas_options = ['piernas_no','piernas_si']        
-        # genital_options = ['genital_no','genital_si']        
-
-
-
-        # with col78:
-        #     #st.write('¿Alteraciones?')
-        #     cabeza = st.radio('Cabeza: ', alteraciones_arr, key=1487)
-        #     abdomen = st.radio('Abdomen:',alteraciones_arr, key=554)
-        #     #st.write(cabeza)
-
-        
-        # with col79:
-        #     alt_cabeza = st.text_input('', key=1488)
-        #     alt_abdomen = st.text_input('', key=140)
-
-        # with col80:
-        #     cuello = st.radio('Cuello: ', alteraciones_arr, key=1489)
-        #     extremidades_sup = st.radio('Extremidades superiores:',alteraciones_arr, key=555)   
-        # with col81:
-        #     alt_cuello = st.text_input('', key=1490)
-        #     alt_extremidades_sup = st.text_input('', key=141)
-
-        # with col82:
-        #     cardio = st.radio('Cardiopulmonar: ', alteraciones_arr, key=1491)
-        #     extremidades_inf = st.radio('Extremidades inferiores:',alteraciones_arr, key=7555)   
-        # with col83:
-        #     alt_cardio = st.text_input('', key=1492)
-        #     alt_extremidades_inf = st.text_input('', key=1504)
-    
-        # col_genitales, genitales_input = st.columns([0.05,0.5])
-        # with col_genitales:
-        #     genitales = st.radio('Genitales:',alteraciones_arr, key=556) 
-        # with genitales_input:    
-        #     alt_genitales = st.text_input('', key=142)
-        
-
         alteraciones_dict = {
         'Cabeza':  alt_cabeza,
         'Cuello':  alt_cuello,
@@ -582,10 +815,6 @@ with antecedentes_form:
     st.write()
     st.header('Examen mental')
     em_options = ['Normal','Depresión', 'Ansiedad', 'Mania', 'Psicosis']
-    # em_template = f'Encuentro a {st.session_state.nombre.title()} con buena higiene y aliño, edad aparente y real concordantes, vestimenta acorde al clima, alerta, orientado, cooperador y sin alteraciones\
-    #     psicomotrices y/o condcuta alucinada. Se refiere de ánimo "mas o menos (sic {st.session_state.nombre.title()}), afecto eutímico. Discurso espontáneo, fluído,\
-    #     coherente, congruente, de velocidad y volumen noramles con una latencia de respsuuesta conservada. Pensamiento lineal sin expresar ideas delirantes,\
-    #     suicidas, homicidas o alteraciones de la sensopercepción. Parcial introspección, juicio dentro del marco de la realidad y buen control de impulsos.'
 
     EM = st.expander('Apariencia, actitud, psicomotricidad, ánimo, afecto, lenguaje, pensamiento, introspección, juicio y control de impulsos')
     with EM:
@@ -593,22 +822,12 @@ with antecedentes_form:
         # st.write(f'{em.em(em_template,st.session_state.nombre.title())}')
         sel_em = em.em(em_template,st.session_state.nombre.title())
         examen_mental = st.text_area('Lista de plantillas de examen mental:',f'{str(sel_em)}',height=250)
-    
+        
 
     antecedentes_form_button = st.form_submit_button('Guardar historia clínica')
     if antecedentes_form_button:
-        # st.write(f'Aletaroria: {rand_ta}')
-        # st.write(st.session_state.ta)
-        st.success('Se han guardado los cambios')
 
-# dsm_form = st.form('dsm_form')
-# with dsm_form:
-#     # dsm_expander = st.expander('Consultar DSM 5')
-#     # with dsm_expander:
-#     image_dsm = st.image('dsm_portada.jpg', width=100)
-#     dsm_button = st.form_submit_button('Consultar DSM 5')    
-#     if dsm_button:
-#         st.download_button('Descargar', 'data/DSM_5.pdf')
+        st.success('Se han guardado los cambios')
 
 form_dx = st.form('form_dx')
 with form_dx:
@@ -616,11 +835,6 @@ with form_dx:
     dx_header, dsm = st.columns([0.5,0.5])
     with dx_header:
         st.header('Diagnósticos')
-    # with dsm:
-    #     DSM_cat = st.expander('DSM')
-    #     with DSM_cat:
-    #         fx.displayPDF(f'./data/DSM_5.pdf')
-
 
     DX = st.expander('Físicos, psiquiátricos, personalidad, psicosocial')
     with DX:
@@ -729,33 +943,9 @@ data_dict = {
     'nombre_asentamiento': st.session_state.dom_asentamiento,
     'municipio': st.session_state.dom_cd,
     'edo_dom': st.session_state.dom_edo,
-    # 'Ninguna': 'Off',
-    # 'Primaria': 'Off',
-    # 'Secundaria': 'Off',
-    # 'Bachillerato': 'Off',
-    # 'Licenciatura': 'Off',
-    # 'Posgrado': 'Off',
     'edo_civil': st.session_state.edo_civil,
     'religion': st.session_state.religion,
-    # 'indigena_si': 'Off',
-    # 'indigena_no': 'Off',
     'ocupacion': st.session_state.ocupacion,
-    # 'NINGUNA': 'Off',
-    # 'IMSS': 'Off',
-    # 'ISSSTE': 'Off',
-    # 'SEDENA': 'Off',
-    # 'SEMAR': 'Off',
-    # 'IMSS-PROSPERA': 'Off',
-    # 'PEMEX': 'Off',
-    # 'SEGURO POPULAR': 'Off',
-    # 'OTRA': 'Off',
-    # 'SE IGNORA': 'Off',
-    # 'NO ESPECIFICADO': 'Off',
-    # 'referido_si': 'Off',
-    # 'referido_no': 'Off',
-    # 'Empleado': 'Off',
-    # 'Desempleado': 'Off',
-    # 'Subempleado': 'Off',
     'institucion': st.session_state.inst_ref,
     'responsable': st.session_state.responsable_nombre,
     'responsable_tel': st.session_state.responsable_tel,
@@ -981,13 +1171,6 @@ paciente = {
                 },
                 'exploración': 
                 {
-                    # 'cabeza_options': cabeza,
-                    # 'cuello_options': cuello,
-                    # 'cardio_options': cardio,
-                    # 'abdomen_options': abdomen,
-                    # 'brazos_options': brazos,
-                    # 'piernas_options': piernas,
-                    # 'genital_options': genital,
                     'cabeza': alt_cabeza,
                     'cuello': alt_cuello,
                     'cardio': alt_cardio,
