@@ -389,70 +389,8 @@ def chat_expediente(pregunta, expediente):
     return respuesta
 
 def audio_recorder_transcriber(nota: str):
-    """Función reutilizable para grabar y transcribir audio."""
-    class AudioRecorder:
-        def __init__(self):
-            
-            self.p = pyaudio.PyAudio()
-            self.FORMAT = pyaudio.paInt16
-            self.CHANNELS = 1
-            self.RATE = 16000
-            self.CHUNK = 1024
-            self.frames = []
-            self.stream = None
-            self.is_recording = False
-            self.record_thread = None
-
-        def record(self):
-            while self.is_recording:
-                try:
-                    data = self.stream.read(self.CHUNK, exception_on_overflow=False)
-                    if data:
-                        self.frames.append(data)
-                        st.session_state["bytes_leidos"] = len(data)
-                except Exception as e:
-                    st.error(f"Error al leer audio: {str(e)}")
-                    break
-
-        def start_recording(self):
-            if not self.is_recording:
-                self.frames = []
-                try:
-                    self.stream = self.p.open(
-                        format=self.FORMAT,
-                        channels=self.CHANNELS,
-                        rate=self.RATE,
-                        input=True,
-                        frames_per_buffer=self.CHUNK
-                    )
-                    self.is_recording = True
-                    self.record_thread = threading.Thread(target=self.record)
-                    self.record_thread.start()
-                    st.success("Grabación iniciada")
-                except Exception as e:
-                    st.error(f"Error al iniciar la grabación: {str(e)}")
-
-        def stop_recording(self):
-            if self.is_recording:
-                self.is_recording = False
-                if self.record_thread:
-                    self.record_thread.join()
-                if self.stream:
-                    self.stream.stop_stream()
-                    self.stream.close()
-                self.p.terminate()
-                st.success("Grabación detenida")
-                if self.frames:
-                    audio_data = io.BytesIO()
-                    with wave.open(audio_data, 'wb') as wf:
-                        wf.setnchannels(self.CHANNELS)
-                        wf.setsampwidth(self.p.get_sample_size(self.FORMAT))
-                        wf.setframerate(self.RATE)
-                        wf.writeframes(b''.join(self.frames))
-                    audio_data.seek(0)
-                    return audio_data
-            return None
-
+    """Función reutilizable para grabar y transcribir audio desde el navegador."""
+    
     def transcribe_audio(audio_data):
         try:
             response = client.audio.transcriptions.create(
@@ -461,12 +399,12 @@ def audio_recorder_transcriber(nota: str):
                 language="es"
             )
             response = resumen_transcripcion(response.text, nota)
-            print(response)
             st.success("Transcripción exitosa")
             return response
         except Exception as e:
             st.error(f"Error al transcribir: {str(e)}")
             return None
+
     def resumen_transcripcion(transcripcion, nota):
         model = genai.GenerativeModel('gemini-2.0-flash')
         if nota == "primera":
@@ -564,44 +502,39 @@ def audio_recorder_transcriber(nota: str):
                     {transcripcion}
         ''')
             resumen = response.text
-        # resumen = response.choices[0].message.content
-        # st.write(response)
         return resumen
 
-
     # Inicializar estado
-    if "recorder" not in st.session_state:
-        st.session_state["recorder"] = AudioRecorder()
-    if "bytes_leidos" not in st.session_state:
-        st.session_state["bytes_leidos"] = 0
     if "audio_data" not in st.session_state:
         st.session_state["audio_data"] = None
     if "transcripcion" not in st.session_state:
         st.session_state["transcripcion"] = ""
-
-    recorder = st.session_state["recorder"]
+    if "is_recording" not in st.session_state:
+        st.session_state["is_recording"] = False
 
     # Interfaz dentro de la función
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Escuchar...", use_container_width=True, icon='🍿'):
-            recorder.start_recording()
+        audio_value = st.audio_input("Graba una nota de voz", disabled=st.session_state["is_recording"])
+        if audio_value and not st.session_state["is_recording"]:
+            st.session_state["audio_data"] = audio_value
+            st.session_state["is_recording"] = True
+            st.success("Grabación iniciada")
+
     with col2:
-        if st.button("Transcribir...", use_container_width=True, icon= '🔮'):
-            audio_data = recorder.stop_recording()
-            if audio_data:
-                st.session_state["audio_data"] = audio_data
+        if st.button("Transcribir...", use_container_width=True, icon='🔮'):
             if st.session_state["audio_data"]:
+                st.session_state["is_recording"] = False
+                st.success("Grabación detenida")
                 with st.spinner("Transcribiendo..."):
                     transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
-                        # st.text(nota)
                         transcripcion = resumen_transcripcion(transcripcion, nota)
                         st.session_state["transcripcion"] = transcripcion
                         st.session_state["audio_data"] = None
 
-    if recorder.is_recording:
-        st.write(f"Tomando nota...")
+    if st.session_state["is_recording"]:
+        st.write("Tomando nota...")
 
     return st.session_state["transcripcion"]
 
