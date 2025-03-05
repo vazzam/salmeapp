@@ -262,10 +262,9 @@ if st.button("Iniciar búsqueda") and research_question and (search_pubmed or se
         with st.spinner("Generando resumen consolidado con Gemini..."):
             prompt_summary = (f'''
                             Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te dare.
-                            1. Elabora un resumen detallado que responda a la siguiente pregunta de investigación: {research_question}. 
-                            2. Integra de manera natural en el texto las citas bibliográficas en formato numérico Vancouver. 
-                            3. La respuesta debe estar en español, con una redacción y formato adecuados para una conversión óptima a voz mediante gTTS. 
-                            4. IMPORTANTE: No incluyas comentarios adicionales ni secciones de referencias.
+                            1. Elabora un resumen detallado que responda a la siguiente pregunta de investigación: {research_question}.                    
+                            2. La respuesta debe estar en español, con lenguaje técnico, profesional, con una redacción y formato adecuados para una conversión óptima a voz mediante gTTS. 
+                            3. IMPORTANTE: No incluyas comentarios adicionales ni secciones de referencias.
                             
                             INFORMACIÓN DE ARTÍCULOS CIENTÍFICOS:
 
