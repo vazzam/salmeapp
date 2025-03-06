@@ -131,7 +131,7 @@ html_ex = '''<!DOCTYPE html>
             border-radius: 4px;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: rgba(119, 119, 119, 0.9);
+            background: rgba(119, 119, 119, 0.9);whius
         }
     </style>
 </head>
@@ -407,10 +407,10 @@ def audio_recorder_transcriber(nota: str):
             compressed_audio = compress_audio(audio_data)
             if not compressed_audio:
                 return None
-            
+
             response = client.audio.transcriptions.create(
-                model="whisper-large-v3-turbo",
-                file=("audio.mp3", compressed_audio, "audio/mp3"),  # Cambiar a MP3
+                model="openai/whisper-large-v3-turbo",
+                file=("audio.wav", compressed_audio, "audio/mp3"),
                 language="es"
             )
             response = resumen_transcripcion(response.text, nota)
@@ -530,17 +530,19 @@ def audio_recorder_transcriber(nota: str):
     # Interfaz dentro de la función
     col1, col2 = st.columns(2)
     with col1:
-        audio_value = st.audio_input("Graba una nota de voz", disabled=st.session_state["is_recording"])
+        audio_value = st.audio_input("", disabled=st.session_state["is_recording"])
         if audio_value and not st.session_state["is_recording"]:
             st.session_state["audio_data"] = audio_value
             st.session_state["is_recording"] = True
-            st.success("Grabación iniciada")
+            # st.success("Grabación iniciada")
 
     with col2:
+        st.text('')
+        st.text('')
         if st.button("Transcribir...", use_container_width=True, icon='🔮'):
             if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
-                st.success("Grabación detenida")
+                # st.success("Grabación detenida")
                 with st.spinner("Comprimiendo y transcribiendo..."):
                     transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
