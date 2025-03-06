@@ -8,7 +8,10 @@ from pydrive.drive import GoogleDrive
 from openai import OpenAI
 import google.generativeai as genai
 import re
-
+import pyaudio
+import threading
+import io
+import wave
 # openai.api_key = "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"
 genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
 # RAND BLOOD PRESSURE VALUES
@@ -576,7 +579,7 @@ def audio_recorder_transcriber(nota: str):
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Escuchar...", use_container_width=True, icon='🍿'):
-            audio_value = st.audio_input("Record a voice message")
+            # audio_value = st.audio_input("Record a voice message")
             recorder.start_recording()
     with col2:
         if st.button("Transcribir...", use_container_width=True, icon= '🔮'):
