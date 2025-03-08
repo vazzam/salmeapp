@@ -418,15 +418,14 @@ def audio_recorder_transcriber(nota: str):
                 segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
                 if segment_size_mb > 25:
                     st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
-                    continue
-                
+                                    
                 response = client.audio.transcriptions.create(
                     model="openai/whisper-large-v3-turbo",
                     file=("audio.wav", segment, "audio/wav"),
                     language="es"
                 )
                 full_transcription += response.text + " "
-                st.write(full_transcription)
+                st.write(response.text)
             if full_transcription:
                 summarized = resumen_transcripcion(full_transcription.strip(), nota)
                 st.success("Transcripción completa exitosa")
