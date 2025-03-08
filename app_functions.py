@@ -384,38 +384,65 @@ def chat_expediente(pregunta, expediente):
     return respuesta
 
 
+import streamlit as st
+import io
+from openai import OpenAI
+import google.generativeai as genai
+from pydub import AudioSegment
+
+client = OpenAI(
+    api_key="8EQlNuXZiBBmZKRo7SxklJyjnWgsDbHm",  # Reemplaza con tu clave real
+    base_url="https://api.deepinfra.com/v1/openai",
+)
+genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
 def audio_recorder_transcriber(nota: str):
-    """Función reutilizable para grabar, comprimir y transcribir audio desde el navegador."""
+    """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
     
-    def compress_audio(audio_data: io.BytesIO) -> io.BytesIO:
-        """Comprime el audio WAV a MP3."""
+    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 600000):  # 10 minutos por segmento
+        """Divide el audio en fragmentos menores."""
         try:
-            # Leer el audio WAV desde BytesIO
             audio = AudioSegment.from_wav(audio_data)
-            # Exportar a MP3 con una tasa de bits baja (e.g., 64k) para mayor compresión
-            compressed_audio = io.BytesIO()
-            audio.export(compressed_audio, format="mp3", bitrate="64k")
-            compressed_audio.seek(0)
-            return compressed_audio
+            duration_ms = len(audio)
+            segments = []
+            for start_ms in range(0, duration_ms, segment_duration_ms):
+                end_ms = min(start_ms + segment_duration_ms, duration_ms)
+                segment = audio[start_ms:end_ms]
+                segment_io = io.BytesIO()
+                segment.export(segment_io, format="wav")  # Mantener WAV para simplicidad
+                segment_io.seek(0)
+                segments.append(segment_io)
+            return segments
         except Exception as e:
-            st.error(f"Error al comprimir el audio: {str(e)}")
+            st.error(f"Error al segmentar el audio: {str(e)}")
             return None
 
     def transcribe_audio(audio_data):
+        """Transcribe el audio segmentado."""
         try:
-            # Comprimir el audio antes de enviarlo
-            compressed_audio = compress_audio(audio_data)
-            if not compressed_audio:
+            segments = split_audio(audio_data)
+            if not segments:
                 return None
-
-            response = client.audio.transcriptions.create(
-                model="openai/whisper-large-v3-turbo",
-                file=("audio.wav", compressed_audio, "audio/mp3"),
-                language="es"
-            )
-            response = resumen_transcripcion(response.text, nota)
-            st.success("Transcripción exitosa")
-            return response
+            
+            full_transcription = ""
+            for i, segment in enumerate(segments):
+                st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
+                segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
+                if segment_size_mb > 25:
+                    st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
+                    continue
+                
+                response = client.audio.transcriptions.create(
+                    model="openai/whisper-large-v3-turbo",
+                    file=("audio.wav", segment, "audio/wav"),
+                    language="es"
+                )
+                full_transcription += response.text + " "
+            
+            if full_transcription:
+                summarized = resumen_transcripcion(full_transcription.strip(), nota)
+                st.success("Transcripción completa exitosa")
+                return summarized
+            return None
         except Exception as e:
             st.error(f"Error al transcribir: {str(e)}")
             return None
@@ -472,7 +499,6 @@ def audio_recorder_transcriber(nota: str):
                         TEXTO A RESUMIR:
                         {transcripcion}
             ''')
-            resumen = response.text
         else:
             response = model.generate_content(f'''
             INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica 
@@ -516,8 +542,7 @@ def audio_recorder_transcriber(nota: str):
                     TEXTO A RESUMIR:
                     {transcripcion}
         ''')
-            resumen = response.text
-        return resumen
+        return response.text
 
     # Inicializar estado
     if "audio_data" not in st.session_state:
@@ -527,26 +552,23 @@ def audio_recorder_transcriber(nota: str):
     if "is_recording" not in st.session_state:
         st.session_state["is_recording"] = False
 
-    # Interfaz dentro de la función
+    # Interfaz
     col1, col2 = st.columns(2)
     with col1:
-        audio_value = st.audio_input("", disabled=st.session_state["is_recording"])
+        audio_value = st.audio_input("Graba una nota de voz (máximo 60 min)", disabled=st.session_state["is_recording"])
         if audio_value and not st.session_state["is_recording"]:
             st.session_state["audio_data"] = audio_value
             st.session_state["is_recording"] = True
-            # st.success("Grabación iniciada")
+            st.success("Grabación iniciada")
 
     with col2:
-        st.text('')
-        st.text('')
         if st.button("Transcribir...", use_container_width=True, icon='🔮'):
             if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
-                # st.success("Grabación detenida")
-                with st.spinner("Comprimiendo y transcribiendo..."):
+                st.success("Grabación detenida")
+                with st.spinner("Segmentando y transcribiendo..."):
                     transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
-                        transcripcion = resumen_transcripcion(transcripcion, nota)
                         st.session_state["transcripcion"] = transcripcion
                         st.session_state["audio_data"] = None
 
@@ -554,6 +576,7 @@ def audio_recorder_transcriber(nota: str):
         st.write("Tomando nota...")
 
     return st.session_state["transcripcion"]
+
 
 def calculate_age(born):
     today = datetime.now()
