@@ -13,6 +13,7 @@ import threading
 import io
 import wave
 from pydub import AudioSegment
+import os
 
 # openai.api_key = "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"
 genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
