@@ -387,7 +387,7 @@ def chat_expediente(pregunta, expediente):
 def audio_recorder_transcriber(nota: str):
     """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
     
-    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 600000):  # 10 minutos por segmento
+    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):  # 10 minutos por segmento
         """Divide el audio en fragmentos menores."""
         try:
             audio = AudioSegment.from_wav(audio_data)
