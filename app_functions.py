@@ -384,17 +384,6 @@ def chat_expediente(pregunta, expediente):
     return respuesta
 
 
-import streamlit as st
-import io
-from openai import OpenAI
-import google.generativeai as genai
-from pydub import AudioSegment
-
-client = OpenAI(
-    api_key="8EQlNuXZiBBmZKRo7SxklJyjnWgsDbHm",  # Reemplaza con tu clave real
-    base_url="https://api.deepinfra.com/v1/openai",
-)
-genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
 def audio_recorder_transcriber(nota: str):
     """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
     
@@ -437,7 +426,7 @@ def audio_recorder_transcriber(nota: str):
                     language="es"
                 )
                 full_transcription += response.text + " "
-            
+                st.write(full_transcription)
             if full_transcription:
                 summarized = resumen_transcripcion(full_transcription.strip(), nota)
                 st.success("Transcripción completa exitosa")
@@ -545,7 +534,7 @@ def audio_recorder_transcriber(nota: str):
         return response.text
 
     # Inicializar estado
-    if "audio_data" not in st.session_state:
+    if "audio_data" not in st.session_state: 
         st.session_state["audio_data"] = None
     if "transcripcion" not in st.session_state:
         st.session_state["transcripcion"] = ""
@@ -576,7 +565,6 @@ def audio_recorder_transcriber(nota: str):
         st.write("Tomando nota...")
 
     return st.session_state["transcripcion"]
-
 
 def calculate_age(born):
     today = datetime.now()
