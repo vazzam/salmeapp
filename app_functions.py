@@ -13,8 +13,7 @@ import threading
 import io
 import wave
 from pydub import AudioSegment
-import os
-
+from streamlit_mic_recorder import mic_recorder
 # openai.api_key = "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"
 genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
 # RAND BLOOD PRESSURE VALUES
@@ -385,20 +384,21 @@ def chat_expediente(pregunta, expediente):
     respuesta = response.text
     return respuesta
 
+
 def audio_recorder_transcriber(nota: str):
     """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
     
-    def split_audio(file_path: str, segment_duration_ms: int = 300000):  # 10 minutos por segmento
-        """Divide el audio en fragmentos menores desde un archivo en disco."""
+    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):  # 10 minutos por segmento
+        """Divide el audio en fragmentos menores."""
         try:
-            audio = AudioSegment.from_file(file_path, format="wav")
+            audio = AudioSegment.from_wav(audio_data)
             duration_ms = len(audio)
             segments = []
             for start_ms in range(0, duration_ms, segment_duration_ms):
                 end_ms = min(start_ms + segment_duration_ms, duration_ms)
                 segment = audio[start_ms:end_ms]
                 segment_io = io.BytesIO()
-                segment.export(segment_io, format="wav")
+                segment.export(segment_io, format="webm")  # Mantener WAV para simplicidad
                 segment_io.seek(0)
                 segments.append(segment_io)
             return segments
@@ -406,27 +406,28 @@ def audio_recorder_transcriber(nota: str):
             st.error(f"Error al segmentar el audio: {str(e)}")
             return None
 
-    def transcribe_audio(file_path):
-        """Transcribe el audio segmentado desde un archivo en disco."""
+    def transcribe_audio(audio_data):
+        """Transcribe el audio segmentado."""
         try:
-            segments = split_audio(file_path)
-            if not segments:
-                return None
+            # segments = split_audio(audio_data)
+            # if not segments:
+            #     return None
             
             full_transcription = ""
-            for i, segment in enumerate(segments):
-                st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
-                segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
-                if segment_size_mb > 25:
-                    st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
-                                    
-                response = client.audio.transcriptions.create(
-                    model="openai/whisper-large-v3-turbo",
-                    file=("audio.wav", segment, "audio/wav"),
-                    language="es"
-                )
-                full_transcription += response.text + " "
-                st.write(response.text)
+            # for i, segment in enumerate(segments):
+            #     st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
+            #     segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
+            #     if segment_size_mb > 25:
+            #         st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
+            #         continue
+                
+            response = client.audio.transcriptions.create(
+                model="openai/whisper-large-v3-turbo",
+                file=("audio.wav", audio_data, "audio/wav"),
+                language="es"
+            )
+            full_transcription += response.text + " "
+            st.write(full_transcription)
             if full_transcription:
                 summarized = resumen_transcripcion(full_transcription.strip(), nota)
                 st.success("Transcripción completa exitosa")
@@ -437,41 +438,141 @@ def audio_recorder_transcriber(nota: str):
             return None
 
     def resumen_transcripcion(transcripcion, nota):
-        # Implementa aquí tu lógica de resumen si es necesario
-        return transcripcion  # Ejemplo simple: retorna la transcripción completa
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        if nota == "primera":
+            response = model.generate_content(f'''
+                INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada.
 
-    # Inicializar estado de la sesión
-    if "audio_file" not in st.session_state:
-        st.session_state["audio_file"] = None
+                OBJETIVO: Redactar la evolución del padecimiento del padecimiento de un paciente, desde su inicio hasta el estado actual.
+
+                FORMATO REQUERIDO:
+                - Idioma español
+                - Texto en párrafos continuos (sin viñetas ni subtítulos) sin salto doble de línea
+                - Extensión mínima de 300 a 400 palabras
+                - Lenguaje técnico apropiado para documentación clínica
+                - Escrito en tercera persona
+
+                INCLUIR:
+                - Antecedentes relevantes del padecimiento
+                - Cronología detallada de síntomas y manifestaciones
+                - Cambios en la severidad e intensidad a lo largo del tiempo
+                - Factores desencadenantes o exacerbantes identificados
+                - Estado actual del paciente
+
+                OMITIR:
+                - Toda información que no corresponda a la evolución del padecimiento del paciente incluyendo las sugerencias terapéuticas realizadas o propuestas durante la consulta
+                - Información personal no relevante para la evolución
+                - Recomendaciones o plan de tratamiento
+                - Realizar juicios de valor
+                - Hacer diagnósticos
+                - Análisis sobre el caso
+                - Un resumen al final del texto 
+                                            
+                ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS A CONTINUACIÓN:
+
+                        Ejemplo 1:
+                        “Cuadro actual de aproximadamente 11 meses de evolución, de inicio insidioso, curso continuo y tendiente al empeoramiento, en el contexto de un trastorno depresivo recurrente que evoluciona hacia un trastorno depresivo persistente, desencadenado por conflictos en la relación con el padre de su hijo y agravado por dependencia emocional, aislamiento social y dificultades económicas.
+                        Por interrogatorio directo, la paciente refiere que desde entonces comenzó con estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con pérdida del interés por actividades que previamente disfrutaba dejando de arreglarse, maquillarse y salir con amigas. Presenta hiporexia con pérdida de 8 kg en aproximadamente 7 meses con fluctuaciones en el peso; hay insomnio mixto con múltiples despertares para verificar a su hijo. Se agregaron problemas de concentración con olvidos frecuentes incluyendo la administración de medicamentos, enlentecimiento psicomotriz y fatiga.
+
+                        Hay pensamientos persistentes de culpa relacionados con su embarazo y la percepción de "decepcionar" a sus padres, así como ideas de minusvalía "no sirvo para nada", "soy una mantenida", "les he fallado". Se añadieron pensamientos pasivos de muerte "sería mejor no estar" aunque sin ideación suicida estructurada. Presenta ansiedad con predominio de pensamientos catastróficos en relación a su familia, cefalea tipo migraña y estreñimiento.
+
+                        Hace aproximadamente 6 meses inició tratamiento con duloxetina 60mg/día notando mejoría parcial de síntomas aunque sin remisión completa. Hace un mes, tras descubrir una presunta infidelidad de su expareja, presenta exacerbación de síntomas depresivos con deterioro en autocuidado llegando a espaciar el baño hasta por una semana, mayor aislamiento social y inicio de consumo diario de alcohol (3 cervezas) como mecanismo de afrontamiento.
+
+                        Los síntomas han impactado significativamente en su funcionalidad, presentando deterioro en el autocuidado, dificultad para realizar las actividades de rehabilitación de su hijo y aislamiento social. Por lo anterior y el aumento de los síntomas ansiosos así como la perdida de motivación que decide acudir a consulta.”
+
+                        Ejemplo 2:
+                        “En el contexto de una historia de múltiples episodios depresivos, inicia su padecimiento actual en abril 2023 de forma insidiosa, continua y tendiente al empeoramiento sin un desencadenante aparente y agravado por deprivación académica, dificultades económicas, conflictos de pareja. Según refiere, desde entonces, comenzó con un estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con perdida del interés por actividades que previamente daban placer dejándo de disfrutar sus actividades del día dejándo de asear su casa y descuidando su autocuidado. A lo anterior se añadieron hiporexia con perdida de entre 6 y 7 kg en 6 messes; hay insomnio mixto con latencia de conciliación de unas 2 horasy al menos 3 despertares; dificultades para la concentración con perdida de objetos y dificultad para mantener el hilo de conversaciones; enlentecimiento psicomotriz. Ha notado la presencia de pensamientos de culpa, minusvalía y pasivos de muerte "me siento insuficiente... siento que no le intereso a nadie, me rechazan y he pensado en mejor desaparecer [sic paciente]". A lo anterior se añadieron ansiedad flotante, nerviosísmo, cervicodorsalgia, aislamiento y episodios de pánico con sensación de ahogo, malestar torácico y síntomas vegetativos de 10-15 minutos de duración y que han ido incrementado en frecuencia de 1-2 / semana a 1-2 por día. Refiere que de junio a agosto presentó acoasmas fugaces con impacto en ánimo incrementando síntomas de ansiedad. En este contexto hace 1 mes, tras discutir con su madre, de forma impulsiva y con intención suicida, tomó unos 7ml de solución de clonazepam 2.5mg/ml sin necesidad de manejo intrahospitalario. Por lo anterior fue valorada hace 10 días en CEB en donde prescribieron fluoxetina con mejoría subjetiva referidade 10%. Por lo anterior es que decide acudir a valoración.”
+
+                        Ejemplo 4:
+                        “El episodio actual se da en el contexto de un patrón de conducta de inicio en la adolescencia tardía, persistentemente desadaptativo e inflexible caracterizado por sensación de vacío crónico, inestabilidad en la relaciones interpesonales y de emociones  con consecuentes conflictos con los padres y parejas; miedo al abandono que le ha condicionado mantenerse en una relación marcada por la violencia; ideas sobrevaloradas referenciales y distorsiones de la autoimagen; también ha presentado pobre tolerancia a la frustración que le conicionaron episodios de desregulación emociona con la presencia de ira desporporcionada e ipmulsividad que le generan conducta autolesivas como método de afrontamiento (cutting) y reactivación de pensamientos de muerte. Padecimiento de alrededor de 9 meses de inicio insidioso, continuo y tendiente al empeoramiento desencadenado por la muerte de la abuela y agravado por desempleo y separación del conyuge. Desde entonces ha presentado un estado de ánimo persistentemente triste, tendiente al llanto espontáneo; insomnio de inicio con latencia de conciliación de hasta 4 horas en asociación a rumiaciones entorno a su situación de pareja;  enlentecimiento psicomotor, problemas para la concentración con múltipls olvidos; hiporexia con perdida de 15 kg en un par de meses; además ha prsentado pensamientos de culpa, minusvalía y pasivos de muerte "Es mi culpa que me haya tratado así, me he fallado... a veces he pensado en no querer depesrtar pero pienso en mis hijos y pasa [sic]". De forma paralela ha presentado ansiedad flotante, cervicodorsalgia, nerviosísmo, inquietud motriz y paroxismos de exacerbación síntomas que se acompañan de descarga adrenérgica con sensación de muerte o perder el control. Hace 2 días, de forma impulsiva, tras ver su expareja con otra persona, presentó tentativa suicida abortada mediante flebotomía "me detienen mis hijos... fue el impuso en ese rato [sic]”
+
+                        TEXTO A RESUMIR:
+                        {transcripcion}
+            ''')
+        else:
+            response = model.generate_content(f'''
+            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica 
+            del paciente entre la consulta previa y la actual, basándote en la transcripción de consulta proporcionada.
+
+            OBJETIVO: Redactar una nota de la evolución clínica de un paciente, desde desde su valoración previa hasta la actual.
+
+            FORMATO REQUERIDO:
+            - Idioma español
+            - Texto en párrafos continuos (sin viñetas ni subtítulos) sin salto doble de línea
+            - Extensión mínima de 300 a 400 palabras
+            - Lenguaje técnico apropiado para documentación clínica
+            - Escrito en tercera persona
+
+            INCLUIR:
+            - Antecedentes relevantes del padecimiento
+            - Cronología detallada de síntomas y manifestaciones (cognitivos, emocionales, ansiosos, afectivos o anímicos, sueño, apetito y adherencia al tratamiento)
+            - Cambios en la severidad e intensidad a lo largo del tiempo
+            - Factores desencadenantes o exacerbantes identificados
+            - Estado actual del paciente
+
+            OMITIR:
+            - Toda información que no corresponda a la evolución del padecimiento del paciente incluyendo las sugerencias terapéuticas realizadas o propuestas durante la consulta actual
+            - Información personal no relevante para la evolución
+            - Recomendaciones o plan de tratamiento
+            - Realizar juicios de valor
+            - Hacer diagnósticos
+            - Análisis sobre el caso
+            - Un resumen al final del texto 
+                                        
+            ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS DE NOTAS DE EVOLUCIÓN A CONTINUACIÓN:
+
+            Ejemplo 1: “Se encuentra clínicamente estable, su ánimo lo refiere como mayoritariamente bien, salvo los primeros días a partir de que fue despedida, hecho que logró afrontar sin mayores complicaciones; se sintió apoyada por sus padres. Se encuentra buscando empleo, ha tenido entrevistas con adecuado desempeño y "segura" de sí misma; en ciernes entrevista que más le llama la atención. En cuanto a ansiedad ha presentado algunos síntomas asociados al estatus de la relación con su novio de la que en ocasiones se siente con culpa. Refiere un patrón de sueño fragmentado por las micciones nocturnas, 2 por noche. En cuanto al incremento de la dosis de MFD no notó tanto cambio, probablemente, por el contexto laboral. Se queja de hiporexia con impacto ponderal de 3kg en 3 semanas. El consumo de cannabis ha disminuido al igual que el craving.”
+
+            Ejemplo 2: “La paciente refiere que hacia el mes de diciembre después de entre 1 a 2 meses de haber suspendido la sertralina por "sentirse bien" comenzó con irritabilidad por lo que acudió a psicología con mejoría sustancial. Acude el día de hoy porque desde hace 2 meses ha notado anhedonia, llanto espontáneo, hiperfagia con aumento de peso lo que impacta de forma negativa en su ánimo. Ha tenido apatía, pérdida de interés, ha dejado de cocinar, lavar su ropa, fatiga, ha perdido el interés en su arreglo, baja en la líbido, pensamientos pasivos de muerte, culpa, minusvalía con recriminación a sí misma y tendencia al aislamiento. Comienza con insomnio de conciliación; hipoprosexia. No ha presentado síntomas ansiosos.”
+
+            Ejemplo 3: “Refiere que no ha notado cambios sustantivos respecto a la valoración previa salvo que ya ha tenido iniciativa para avanzar en los pendientes personales y encomendados. Por ejemplo hoy que no tuvo clase se puso a aspirar y lavar la alfombra de su cuarto, plan que tenía 2 meses en planes "antes me hubiera puesto hacer otra cosa". Ha tenido dificultades para despertar e ir a hacer ejercicio. Continúa con dificultades para conciliar el sueño aunque puede estar asociado a que, aunque se va a dormir a las 10pm, lo hace mientras está en videollamada con su novia. Una vez conciliado el sueño no despierta por las madrugadas y despierta hacia las 6:40 am para sus actividades, buen patrón alimenticio y de sueño. En lo escolar se siente un poco más social con mayor participación en clase e interacción con sus compañeros; en lo atencional ha mejorado sustantivamente en buena medida a que ha adoptado cambios como despejarse previo clase "voy al baño me mojo la cara, voy por una bebida y ya me enfoco mejor (sic)". En relación a la reducción de lorazepam no notó cambio alguno. Dice sentirse emocionado porque lo visitará su novia dentro de 1 mes. He disfrutado jugar XBOX, lavar los carros y cocinar.”
+
+            Ejemplo 4: “Acude paciente refiriéndo continuar con estabilidad de sus síntomas, es decir, con la disminución de la ansiedad y síntomas depresivos además de la casi ausencia de los pensamientos de culpa/minusvalía (los de muerte están ausentes); sin embargo refiere que algunos días, los menos, ha tenido algunas bajas en el estado de ánimo sin una causa identificada. Adecuada adherencia al tratamiento, patrón de sueño y alimenticio. También ha notado menos "fastidio" por estar haciendo su trabajo además de menor irritabilidad, mayor energía con mejor concentración y rendimiento en su empleo. En cuanto a la ansiedad casi han desaparecido las rumiaciones ansiógenas y cuando estas se presentan logra identificarlas y darles cauce. Continúa con actividad física a base de rutina dentro de casa con una frecuencia de 3 días por semana durante 40 minutos. Subjetivamente califica su estado de ánimo de un 8-9/10.”
+
+                    TEXTO A RESUMIR:
+                    {transcripcion}
+        ''')
+        return response.text
+
+    # Inicializar estado
+    if "audio_data" not in st.session_state: 
+        st.session_state["audio_data"] = None
     if "transcripcion" not in st.session_state:
         st.session_state["transcripcion"] = ""
     if "is_recording" not in st.session_state:
         st.session_state["is_recording"] = False
 
-    # Interfaz de usuario
+    # Interfaz
     col1, col2 = st.columns(2)
     with col1:
-        audio_value = st.audio_input("Graba una nota de voz (máximo 60 min)", disabled=st.session_state["is_recording"])
+        audio_value =  mic_recorder(
+        start_prompt="Toma nota...",
+        stop_prompt="Detener",
+        just_once=False,
+        use_container_width=True,
+        format="webm",
+        callback=None,
+        args=(),
+        kwargs={},
+        key=None
+    )
+        if audio_value:
+            st.audio(audio_value['bytes'])
         if audio_value and not st.session_state["is_recording"]:
+            st.session_state["audio_data"] = audio_value['bytes']
             st.session_state["is_recording"] = True
-            audio_file_path = "temp_audio.wav"
-            with open(audio_file_path, "wb") as f:
-                f.write(audio_value.read())
-            st.session_state["audio_file"] = audio_file_path
-            st.success("Grabación guardada")
+            # st.success("Grabación iniciada")
 
     with col2:
-        if st.button("Transcribir...", use_container_width=True):
-            if st.session_state["audio_file"]:
+        if st.button("Transcribir...", use_container_width=True, icon='🔮'):
+            if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
-                st.success("Grabación detenida")
+                # st.success("Grabación detenida")
                 with st.spinner("Segmentando y transcribiendo..."):
-                    transcripcion = transcribe_audio(st.session_state["audio_file"])
+                    transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
                         st.session_state["transcripcion"] = transcripcion
-                        # Limpiar el archivo temporal
-                        os.remove(st.session_state["audio_file"])
-                        st.session_state["audio_file"] = None
+                        st.session_state["audio_data"] = None
 
     if st.session_state["is_recording"]:
         st.write("Tomando nota...")
