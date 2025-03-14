@@ -101,11 +101,11 @@ def s3_download(bucket_name, target_path, origin_file_path):
     # st.write('',f'KEY: {origin_file_path}, FILENAME: {target_path}')
     salme_bucket.download_file(Key = target_path, Filename = origin_file_path)
 
-@st.cache(persist = True)
+# @st.cache(persist = True)
 def load_mexico_cities():
     return pd.read_csv('./mx.csv')
 
-@st.cache()
+# @st.cache()
 def municipios():
     df = load_mexico_cities()
     estados = st.multiselect('Estados', df['admin_name'].unique(), key=0)

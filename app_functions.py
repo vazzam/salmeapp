@@ -22,6 +22,12 @@ def rand_ta():
     ta = f'{random.randint(100,130)}/{random.randint(66,78)}'
     return ta
 
+def procesar_texto(texto):
+    patron = r"^```(.*?)```$"
+    coincidencia = re.search(patron, texto, re.DOTALL)
+    
+    return coincidencia.group(1) if coincidencia else texto
+
 #ALMACEN DATOS FIJOS
 # @st.cache_data
 def stored_data(name):
@@ -413,7 +419,7 @@ def audio_recorder_transcriber(nota: str):
             # if not segments:
             #     return None
             
-            full_transcription = ""
+            # full_transcription = ""
             # for i, segment in enumerate(segments):
             #     st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
             #     segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
@@ -426,10 +432,10 @@ def audio_recorder_transcriber(nota: str):
                 file=("audio.wav", audio_data, "audio/wav"),
                 language="es"
             )
-            full_transcription += response.text + " "
-            st.write(full_transcription)
-            if full_transcription:
-                summarized = resumen_transcripcion(full_transcription.strip(), nota)
+            
+            # st.write(response.text)
+            if response.text:
+                summarized = resumen_transcripcion(response.text, nota)
                 st.success("Transcripción completa exitosa")
                 return summarized
             return None
@@ -545,9 +551,10 @@ def audio_recorder_transcriber(nota: str):
     # Interfaz
     col1, col2 = st.columns(2)
     with col1:
+        st.text('')
         audio_value =  mic_recorder(
-        start_prompt="Toma nota...",
-        stop_prompt="Detener",
+        start_prompt="Toma nota 💬",
+        stop_prompt="Detener 🟥",
         just_once=False,
         use_container_width=True,
         format="webm",
@@ -828,4 +835,3 @@ def gdrive_up(local_file, final_name):
 #             messages=[{"role": "user", "content": f'{prompt}'}
 #                 ])
 #             return response.choices[0]['message']['content']
-

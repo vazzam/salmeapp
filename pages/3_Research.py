@@ -1,23 +1,35 @@
 import streamlit as st
-from Bio import Entrez, Medline
-import google.generativeai as genai
-from gtts import gTTS  # Para convertir texto a voz
-from scholarly import scholarly  # Librería para buscar en Google Scholar
-import os
 from pathlib import Path
+import logging
+from datetime import date, datetime
+from typing import List, Dict, Optional
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+import requests
+from bs4 import BeautifulSoup
+from Bio import Entrez, Medline
+import os
+import re
+import pandas as pd
+import google.generativeai as genai
+from PyPDF2 import PdfReader
+from gtts import gTTS
+import base64
+from metapub import PubMedFetcher, FindIt
+# Configure logging
 
-
+# Configuración inicial de Streamlit
 st.set_page_config(
-    page_title=" DeepResearch",
-    page_icon="fav.png",  # EP: how did they find a symbol?
-    layout="centered" ,
-    initial_sidebar_state="collapsed",
+    page_title="Deep Research",
+    page_icon="fav.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
-# Configurar la API key de Gemini (se recomienda usar Streamlit secrets para la clave)
-genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
-
-# Configurar el email para Entrez
-Entrez.email = "your.email@example.com"  # Reemplaza con tu email
+def procesar_texto(texto):
+    patron = r"^```(.*?)```$"
+    coincidencia = re.search(patron, texto, re.DOTALL)
+    
+    return coincidencia.group(1) if coincidencia else texto
 
 def get_base64_image(image_path):
     import base64
@@ -32,7 +44,7 @@ else:
     st.warning("Logotipo no encontrado en la ruta especificada.")
 
 def load_css():
-    with open('style.css', 'r') as f:
+    with open('style_deepsrch.css', 'r') as f:
         css = f.read()
     st.markdown(f'<style>{css}</style>', unsafe_allow_html=True)
 
@@ -86,8 +98,8 @@ header_html = f"""
                 <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
             </svg>
         </a>
-        <!-- Botón Consulta Subsecuente -->
-        <a href="Subsecuentes" class="icon-button" target="_self">
+        <!-- Botón Consulta Subsecuentes -->
+        <a href="/Subsecuentes" class="icon-button" target="_self">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                 <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 16H7v-2h10v2zm0-4H7v-2h10v2zm0-4H7V9h10v2z"/>
             </svg>
@@ -103,219 +115,661 @@ header_html = f"""
 """
 st.markdown(header_html, unsafe_allow_html=True)
 
-# Entrada de la pregunta de investigación
-research_question = st.text_input("Introduce tu pregunta de investigación o tema de interés:")
+summary_css = """
+<style>
+.summary-container {
+    background-color: #1e1e1e;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    color: #e0e0e0;
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+}
+.summary-container h2 {
+    color: #ffffff;
+    font-size: 24px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #4caf50;
+    padding-bottom: 5px;
+}
+.summary-container p {
+    margin: 10px 0;
+    font-size: 20px;
+    text-align: justify;
+}
+.summary-container strong {
+    color: #4caf50;
+}
+.summary-container a {
+    color: #81d4fa;
+    text-decoration: none;
+}
+.summary-container a:hover {
+    text-decoration: underline;
+}
+</style>
+"""
 
-# Entrada para definir el número de artículos a buscar por fuente
-num_articles = int(st.text_input("Número de artículos a buscar por fuente:", '10'))
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.FileHandler('pubmed_scraper.log'), logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-# Checkboxes para seleccionar fuentes
-search_pubmed = st.checkbox("Buscar en PubMed", value=True)
-search_scholar = st.checkbox("Buscar en Google Scholar", value=True)
+# Configurar la API de Gemini
+genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
 
-# Botón para iniciar la búsqueda
-if st.button("Iniciar búsqueda") and research_question and (search_pubmed or search_scholar):
-    # 1. Generar consulta booleana con Gemini
-    with st.spinner("Identificando términos clave con Gemini..."):
-        model = genai.GenerativeModel('gemini-2.0-pro-exp-02-05')
-        boolean_query_pubmed = ""
-        boolean_query_scholar = ""
+# Configurar el email para Entrez
+Entrez.email = "your.email@example.com"  # Reemplaza con tu email
+
+
+
+# Inicializar session_state si no existe
+if "summaries" not in st.session_state:
+    st.session_state["summaries"] = []
+if "articles_info_text" not in st.session_state:
+    st.session_state["articles_info_text"] = ""
+
+# Clases del Código 2
+class PubMedClient:
+    def __init__(self, email: str):
+        self.email = email
+        Entrez.email = email
         
-        if search_pubmed:
-            prompt_terms_pubmed = (f'''
-                Como experto en búsquedas médicas, mejora la siguiente pregunta para PubMed.
-                Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
+    def search(self, query: str, start_date: str, end_date: str, num_papers: int) -> List[Dict]:
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d").strftime("%Y/%m/%d")
+            end_date = end_date if end_date else date.today().strftime("%Y/%m/%d")
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").strftime("%Y/%m/%d")
+
+            handle = Entrez.esearch(db='pubmed', term=query, retmax=num_papers, sort='relevance', mindate=start_date, maxdate=end_date, datetype='pdat')
+            results = Entrez.read(handle)
+            handle.close()
+
+            if not results['IdList']:
+                return []
+
+            # Obtener detalles de los artículos, incluyendo DOIs
+            handle = Entrez.efetch(db='pubmed', id=','.join(results['IdList']), retmode='xml')
+            papers = Entrez.read(handle)
+            handle.close()
+
+            formatted_results = []
+            for i, paper in enumerate(papers['PubmedArticle']):
+                try:
+                    article = paper['MedlineCitation']['Article']
+                    pub_date = article['Journal']['JournalIssue']['PubDate']
+                    year = pub_date.get('Year', '')
+                    month = pub_date.get('Month', '01')
+                    day = pub_date.get('Day', '01')
+                    if month.isalpha():
+                        month = datetime.strptime(month[:3], '%b').strftime('%m')
+                    date_obj = datetime.strptime(f"{year}-{month}-{day}", "%Y-%m-%d")
+                    
+                    # Extraer DOI si está disponible
+                    doi = 'N/A'
+                    if 'ELocationID' in article:
+                        for loc in article['ELocationID']:
+                            if loc.attributes.get('EIdType') == 'doi':
+                                doi = loc
+                                break
+                    
+                    formatted_results.append({
+                        'title': article.get('ArticleTitle', 'No title available'),
+                        'abstract': article.get('Abstract', {}).get('AbstractText', ['No abstract available'])[0],
+                        'authors': [f"{author.get('LastName', '')}, {author.get('ForeName', '')}" for author in article.get('AuthorList', [])],
+                        'publication_date': f"{year}/{month}/{day}",
+                        'date_obj': date_obj.isoformat(),
+                        'year': year,
+                        'pubmed_id': paper['MedlineCitation']['PMID'],
+                        'doi': doi,  # Nuevo campo para el DOI
+                        'relevance_order': i,
+                        'citations': 0
+                    })
+                except Exception as e:
+                    logger.error(f"Error parsing paper: {e}")
+                    continue
+            return formatted_results
+        except Exception as e:
+            logger.error(f"Error in PubMed search: {e}")
+            return []
+
+class DownloadTracker:
+    def __init__(self):
+        self.downloads = []
+        
+    def add_download(self, status: str, paper_info: dict, message: str, filename: Optional[str] = None):
+        download_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'status': status,
+            'paper_title': paper_info.get('title', 'Unknown Title'),
+            'year': paper_info.get('year', 'N/A'),
+            'pmid': paper_info.get('pubmed_id', 'N/A'),
+            'url': f"https://pubmed.ncbi.nlm.nih.gov/{paper_info.get('pubmed_id', '')}/",
+            'summary': message,
+            'filename': filename
+        }
+        self.downloads.append(download_entry)
+        
+    def get_downloads(self):
+        return sorted(self.downloads, key=lambda x: x['timestamp'], reverse=True)
+
+
+
+class PDFDownloader:
+    def __init__(self, output_dir: Path):
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        self.fetcher = PubMedFetcher()  # Inicializar el fetcher de metapub
+
+    def try_metapub_download(self, pubmed_id: str, doi: str, filename: str) -> Dict:
+        """Intenta descargar el PDF usando el método FindIt de metapub."""
+        try:
+            # Usar FindIt para localizar el artículo con el PMID
+            st.write(doi)
+            findit_result = FindIt(doi=doi)
+            
+            if findit_result and findit_result.url:
+                pdf_response = requests.get(findit_result.url, headers=self.headers, allow_redirects=True)
+                pdf_response.raise_for_status()
                 
-                Pregunta: '{research_question}'
-            ''')
+                # Verificar si la respuesta es un PDF
+                content_type = pdf_response.headers.get('content-type', '').lower()
+                if 'application/pdf' in content_type:
+                    target_path = self.output_dir / f"{filename}.pdf"
+                    counter = 1
+                    while target_path.exists():
+                        target_path = self.output_dir / f"{filename}_{counter}.pdf"
+                        counter += 1
+                    with open(target_path, 'wb') as f:
+                        f.write(pdf_response.content)
+                    return {
+                        'success': True,
+                        'message': f'Successfully downloaded via metapub (FindIt) to {target_path.name}',
+                        'filename': target_path.name
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': f'FindIt URL ({findit_result.url}) did not provide a PDF (Content-Type: {content_type})',
+                        'filename': None
+                    }
+            else:
+                return {'success': False, 'message': 'No URL found via metapub FindIt', 'filename': None}
+        except Exception as e:
+            logger.error(f"Error downloading with metapub FindIt for PMID {pubmed_id}: {str(e)}")
+            return {'success': False, 'message': f'metapub FindIt download error: {str(e)}', 'filename': None}
+
+    def try_pmc_download(self, pmcid: str, filename: str) -> Dict:
+        # Método existente, sin cambios
+        try:
+            pmc_url = f"https://pmc.ncbi.nlm.nih.gov/articles/{pmcid}/"
+            response = requests.get(pmc_url, headers=self.headers)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            pdf_link = soup.select_one('a[href*="pdf/main.pdf"]')
+            if not pdf_link:
+                return {'success': False, 'message': 'No PDF link found on PMC', 'filename': None}
+            pdf_url = pdf_link['href']
+            if pdf_url.startswith('/'):
+                pdf_url = f"https://pmc.ncbi.nlm.nih.gov{pdf_url}"
+            pdf_response = requests.get(pdf_url, headers=self.headers, allow_redirects=True)
+            pdf_response.raise_for_status()
+            if pdf_response.headers.get('content-type', '').lower() == 'application/pdf':
+                target_path = self.output_dir / f"{filename}.pdf"
+                counter = 1
+                while target_path.exists():
+                    target_path = self.output_dir / f"{filename}_{counter}.pdf"
+                    counter += 1
+                with open(target_path, 'wb') as f:
+                    f.write(pdf_response.content)
+                return {'success': True, 'message': f'Successfully downloaded from PMC to {target_path.name}', 'filename': target_path.name}
+            return {'success': False, 'message': 'Invalid PDF response from PMC', 'filename': None}
+        except Exception as e:
+            logger.error(f"Error downloading from PMC {pmcid}: {str(e)}")
+            return {'success': False, 'message': f'PMC download error: {str(e)}', 'filename': None}
+
+    def try_scihub_download(self, url: str, filename: str, doi: str) -> Dict:
+        # Método existente, sin cambios
+        try:
+            scihub_url = f"https://sci-hub.se/{doi}"
+            response = requests.get(scihub_url, headers=self.headers)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            pdf_iframe = soup.find('iframe')
+            if pdf_iframe:
+                pdf_url = pdf_iframe['src']
+                if pdf_url.startswith('//'):
+                    pdf_url = 'https:' + pdf_url
+                elif pdf_url.startswith('/'):
+                    pdf_url = 'https://sci-hub.se' + pdf_url
+            else:
+                save_button = soup.find('button', onclick=True)
+                if save_button:
+                    onclick_content = save_button.get('onclick', '')
+                    match = re.search(r"location\.href='(.*?)'", onclick_content)
+                    if match:
+                        pdf_url = match.group(1)
+                        if pdf_url.startswith('//'):
+                            pdf_url = 'https:' + pdf_url
+                        elif pdf_url.startswith('/'):
+                            pdf_url = 'https://sci-hub.se' + pdf_url
+                        else:
+                            pdf_url = pdf_url
+                    else:
+                        return {'success': False, 'message': 'No downloadable PDF link found on Sci-Hub', 'filename': None}
+                else:
+                    return {'success': False, 'message': 'No PDF or save button found on Sci-Hub', 'filename': None}
+            pdf_response = requests.get(pdf_url, headers=self.headers, allow_redirects=True)
+            pdf_response.raise_for_status()
+            if 'application/pdf' in pdf_response.headers.get('content-type', '').lower():
+                target_path = self.output_dir / f"{filename}.pdf"
+                counter = 1
+                while target_path.exists():
+                    target_path = self.output_dir / f"{filename}_{counter}.pdf"
+                    counter += 1
+                with open(target_path, 'wb') as f:
+                    f.write(pdf_response.content)
+                return {
+                    'success': True,
+                    'message': f'Successfully downloaded from Sci-Hub to {target_path.name}',
+                    'filename': target_path.name
+                }
+            else:
+                return {'success': False, 'message': 'Response was not a PDF', 'filename': None}
+        except Exception as e:
+            logger.error(f"Error downloading from Sci-Hub with requests: {str(e)}")
+            return {'success': False, 'message': f'Sci-Hub download error: {str(e)}', 'filename': None}
+
+    def download_paper(self, url: str, doi: str, filename: str, pmcid: Optional[str] = None, pubmed_id: Optional[str] = None) -> Dict:
+        """Intenta descargar el PDF priorizando metapub con FindIt, luego PMC y finalmente Sci-Hub."""
+        # Extraer pubmed_id de la URL si no se proporciona explícitamente
+        if not pubmed_id and url:
+            pubmed_id_match = re.search(r'pubmed\.ncbi\.nlm\.nih\.gov/(\d+)/', url)
+            pubmed_id = pubmed_id_match.group(1) if pubmed_id_match else None
+
+        # 1. Intentar con metapub usando FindIt con PMID
+        if pubmed_id:
+            metapub_result = self.try_metapub_download(pubmed_id, doi, filename)
+            if metapub_result['success']:
+                return metapub_result
+            logger.info(f"metapub FindIt download failed for PMID {pubmed_id}, trying next method")
+
+        # 2. Intentar con PMC si hay PMCID
+        if pmcid:
+            pmc_result = self.try_pmc_download(pmcid, filename)
+            if pmc_result['success']:
+                return pmc_result
+            logger.info(f"PMC download failed for {pmcid}, trying Sci-Hub")
+
+        # 3. Intentar con Sci-Hub como último recurso si hay DOI
+        if doi != 'N/A':
+            return self.try_scihub_download(url, filename, doi)
+        
+        return {'success': False, 'message': 'No download method succeeded (missing PMID, PMCID, or valid DOI)', 'filename': None}
+
+class CitationFetcher:
+    def __init__(self):
+        self.session = requests.Session()
+
+    def get_citation_count(self, pubmed_id: str) -> int:
+        try:
+            url = f"https://pubmed.ncbi.nlm.nih.gov/{pubmed_id}/"
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            citation_elem = soup.find('span', {'class': 'citations-list-total'})
+            if citation_elem:
+                count = re.search(r'\d+', citation_elem.text)
+                return int(count.group()) if count else 0
+            return 0
+        except Exception as e:
+            logger.error(f"Error fetching citations for {pubmed_id}: {e}")
+            return 0
+
+# Inicializar componentes
+download_tracker = DownloadTracker()
+pubmed_client = PubMedClient("your.email@example.com")
+pdf_downloader = PDFDownloader(Path("downloads"))
+citation_fetcher = CitationFetcher()
+
+# Funciones auxiliares
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+def extract_text_from_pdf_url(url):
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            pdf_reader = PdfReader(BytesIO(response.content))
+            text = ""
+            for page in pdf_reader.pages:
+                text += page.extract_text() or ""
+            return text[:2000]  # Limitamos a 2000 caracteres
+        return "N/A"
+    except Exception as e:
+        logger.error(f"Error extracting PDF from URL {url}: {e}")
+        return "N/A"
+
+def extract_text_from_pdf_file(pdf_path: Path) -> str:
+    try:
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            text += page_text
+        
+        # Buscar el inicio de la sección "References" (o variaciones comunes)
+        ref_patterns = [
+            r'\bReferences\b\s*[\n\r]+',  # "References" seguido de salto de línea
+            r'\bREFERENCES\b\s*[\n\r]+',  # Mayúsculas
+            r'\bBibliography\b\s*[\n\r]+',  # Alternativa menos común
+            r'\bReferencias\b\s*[\n\r]+',  # En español, por si acaso
+        ]
+        
+        # Encontrar la primera coincidencia de la sección de referencias
+        for pattern in ref_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                # Cortar el texto hasta antes de "References"
+                text = text[:match.start()]
+                break
+        
+        # Eliminar líneas residuales que puedan quedar después del corte (como números o texto incompleto)
+        text = "\n".join(line for line in text.splitlines() if line.strip() and not line.strip().isdigit())
+        
+        return text.strip()
+    except Exception as e:
+        logger.error(f"Error extracting text from PDF {pdf_path}: {e}")
+        return ""
+
+def generate_summary_with_gemini(text: str, research_question: str) -> str:
+    model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+    prompt = f"""
+    Como experto en análisis de literatura científica, genera un resumen conciso del siguiente texto, preferentemente y de ser posible
+    orientado a responder la pregunta de investigación: '{research_question}'. 
+    Enfócate en cómo el contenido responde a la pregunta, omitiendo detalles irrelevantes. 
+    Limita el resumen a 150-250 palabras.
+    Texto: '{text[:4000]}'
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        logger.error(f"Error generating summary with Gemini: {e}")
+        return "No summary available due to processing error."
+
+def generate_full_summary(articles_info_text: str, summaries: List[str], research_question: str) -> str:
+    model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+    combined_content = articles_info_text + "\n\n" + "\n\n".join(summaries)
+    prompt = f"""
+    Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te proporciono:
+    1. Elabora un resumen detallado de entre 800 y 1000 palabras que responda a la pregunta de investigación: '{research_question}'. 
+    2. La respuesta debe estar en español, con una redacción adecuada profesional y lenguaje técnico.
+    3. Usa tanto los abstracts como los resúmenes de PDFs descargados para enriquecer el resumen.
+    4. No incluyas comentarios adicionales ni secciones de referencias, ni algún texto o palabras que no tengan que ver con el tema
+    5. No uses ```
+    Información: '{combined_content}'
+    """
+    try:
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        logger.error(f"Error generating full summary with Gemini: {e}")
+        return "No full summary available due to processing error."
+
+# CSS para tarjetas en tema oscuro
+card_css = """
+<style>
+.card {
+    background-color: #2b2b2b;
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+    color: #e0e0e0;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+.card-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 5px;
+}
+.card-info {
+    font-size: 14px;
+    color: #bbbbbb;
+    margin: 2px 0;
+}
+.card-abstract {
+    font-size: 13px;
+    color: #999999;
+    margin-top: 10px;
+    line-height: 1.4;
+}
+</style>
+"""
+
+# Interfaz y lógica principal
+def main():
+    # Header con logo
+    logo_path = Path('vitalia.png')
+    if logo_path.exists():
+        logo_base64 = get_base64_image(logo_path)
+        st.markdown(f"""
+        <div class="app-header">
+            <div class="logo-container">
+                <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.warning("Logotipo no encontrado.")
+
+    # st.title("Deep Research")
+
+    with st.sidebar:
+        st.header("Parámetros de Búsqueda")
+        research_question = st.text_input("Pregunta de investigación o tema de interés:")
+        num_abstracts = int(st.text_input("Número de abstracts a buscar:", '10'))
+        num_downloads = int(st.text_input("Número de artículos a descargar:", '5'))
+        start_date = st.date_input("Fecha de inicio", value=date(2020, 1, 1))
+        end_date = st.date_input("Fecha de fin", value=date.today(), max_value=date.today())
+        sort_by = st.selectbox("Ordenar por", ["relevance", "date", "citations"])
+
+    if st.button("Iniciar búsqueda") and research_question:
+        with st.spinner("Generando consulta con Gemini..."):
+            model = genai.GenerativeModel('gemini-2.0-pro-exp-02-05')
+            prompt_terms_pubmed = f'''
+            Como experto en búsquedas médicas, analiza la siguiente pregunta: '{research_question}'. Identifica los conceptos principales y términos MeSH relevantes. 
+            Formula una búsqueda booleana optimizada para PubMed que capture todos los aspectos importantes de la pregunta. Proporciona solo la estrategia de búsqueda 
+            en inglés, sin explicaciones adicionales ni comentarios. La búsqueda debe incluir operadores booleanos (AND, OR, NOT), términos MeSH entre corchetes cuando 
+            sea apropiado, y filtros relevantes como [Title/Abstract] cuando sea necesario para maximizar precisión y exhaustividad.
+            Solo retorna la pregunta en inglés en texto plano sin decoradores o markdown, también evita comentarios adicionales,
+            '''
             response_terms_pubmed = model.generate_content(prompt_terms_pubmed)
             boolean_query_pubmed = response_terms_pubmed.text.strip()
             st.write(f"Consulta PubMed generada: **{boolean_query_pubmed}**")
-            
-        if search_scholar:
-            prompt_terms_scholar = (f'''
-                Como experto en búsquedas médicas, mejora la siguiente pregunta para Google Scholar.
-                Proporciona solo la pregunta mejorada en inglés, sin explicaciones adicionales.
-                
-                Pregunta: '{research_question}'
-            ''')
-            response_terms_scholar = model.generate_content(prompt_terms_scholar)
-            boolean_query_scholar = response_terms_scholar.text.strip()
-            st.write(f"Consulta Google Scholar generada: **{boolean_query_scholar}**")
 
-    # Inicializar listas para combinar resultados
-    pubmed_articles_data = []
-    gs_articles_data = []
-    pubmed_info_text = ""
-    gs_info_text = ""
+        # Búsqueda de abstracts
+        with st.spinner("Buscando abstracts en PubMed..."):
+            results = pubmed_client.search(boolean_query_pubmed, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"), num_abstracts)
+            if not results:
+                st.warning("No se encontraron resultados.")
+            else:
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    citation_futures = {executor.submit(citation_fetcher.get_citation_count, paper['pubmed_id']): i for i, paper in enumerate(results)}
+                    for future in concurrent.futures.as_completed(citation_futures):
+                        i = citation_futures[future]
+                        try:
+                            results[i]['citations'] = future.result()
+                        except Exception as e:
+                            logger.error(f"Error fetching citations: {e}")
+                if sort_by == 'date':
+                    results.sort(key=lambda x: x['date_obj'], reverse=True)
+                elif sort_by == 'citations':
+                    results.sort(key=lambda x: x['citations'], reverse=True)
+                st.session_state['results'] = results
+                st.success(f"Se encontraron {len(results)} abstracts.")
 
-    # 2. Búsqueda en PubMed (si está seleccionada)
-    if search_pubmed:
-        with st.spinner("Buscando en PubMed..."):
-            try:
-                handle = Entrez.esearch(db="pubmed", term=boolean_query_pubmed, retmax=num_articles, retmode="xml")
-                record = Entrez.read(handle)
-
-                if record["IdList"]:
-                    st.success(f"Se encontraron {len(record['IdList'])} artículos en PubMed.")
-                    article_ids = record["IdList"]
-
-                    fetch_handle = Entrez.efetch(db="pubmed", id=article_ids, rettype="medline", retmode="text")
-                    medline_records = Medline.parse(fetch_handle)
-                    article_counter = 1
-
-                    for rec in medline_records:
-                        title = rec.get('TI', 'N/A')
-                        abstract = rec.get('AB', 'N/A')
-                        pmid = rec.get('PMID', 'N/A')
-                        
-                        authors = rec.get('AU', [])
-                        publication_date = rec.get('DP', 's.f.')
-
-                        if authors:
-                            if len(authors) > 2:
-                                citation_authors = f"{authors[0]}, et al."
-                            else:
-                                citation_authors = ", ".join(authors)
-                        else:
-                            citation_authors = "Desconocido"
-                        year = publication_date.split()[0] if publication_date != 's.f.' else "s.f."
-                        apa_citation = f"{citation_authors} ({year}). {title}."
-                        
-                        pubmed_url = f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid != 'N/A' else 'N/A'
-                        
-                        truncated_abstract = (abstract[:150] + "...") if abstract != "N/A" and len(abstract) > 150 else abstract
-                        
-                        pubmed_articles_data.append({
-                            "Title": title,
-                            "Abstract": truncated_abstract,
-                            "Link": pubmed_url,
-                            "Source": "PubMed"
-                        })
-                        
-                        pubmed_info_text += f"Artículo PubMed {article_counter}:\n"
-                        pubmed_info_text += f"Cita APA: {apa_citation}\n"
-                        pubmed_info_text += f"Abstract: {abstract}\n\n"
-                        article_counter += 1
-                        
-                    fetch_handle.close()
-                else:
-                    st.warning("No se encontraron artículos en PubMed para la consulta generada.")
-            except Exception as e:
-                st.error(f"Ocurrió un error durante la búsqueda en PubMed: {e}")
-            finally:
-                if 'handle' in locals():
-                    handle.close()
-
-    # 3. Búsqueda en Google Scholar (si está seleccionada)
-    if search_scholar:
-        with st.spinner("Buscando en Google Scholar..."):
-            try:
-                gs_search = scholarly.search_pubs(boolean_query_scholar)
-                for i in range(num_articles):
-                    try:
-                        pub = next(gs_search)
-                    except StopIteration:
-                        break
-                    bib = pub.get('bib', {})
-                    title = bib.get('title', 'N/A')
-                    abstract = bib.get('abstract', 'N/A')
-
-                    authors_field = bib.get('author', 'Desconocido')
-                    if isinstance(authors_field, list):
-                        authors_list = authors_field
-                    else:
-                        authors_list = authors_field.split(', ')
-
-                    if len(authors_list) > 2:
-                        citation_authors = f"{authors_list[0]}, et al."
-                    else:
-                        citation_authors = ", ".join(authors_list)
-                    year = bib.get('pub_year', 's.f.')
-                    apa_citation = f"{citation_authors} ({year}). {title}."
-                    gs_url = pub.get('pub_url', 'N/A')
-                    truncated_abstract = (abstract[:150] + "...") if abstract != "N/A" and len(abstract) > 150 else abstract
-
-                    gs_articles_data.append({
-                        "Title": title,
-                        "Abstract": truncated_abstract,
-                        "Link": gs_url,
-                        "Source": "Google Scholar"
-                    })
-
-                    gs_info_text += f"Artículo Google Scholar {i+1}:\n"
-                    gs_info_text += f"Cita APA: {apa_citation}\n"
-                    gs_info_text += f"Abstract: {abstract}\n\n"
-                if gs_articles_data:
-                    st.success(f"Se encontraron {len(gs_articles_data)} artículos en Google Scholar.")
-                else:
-                    st.warning("No se encontraron artículos en Google Scholar para la consulta generada.")
-            except Exception as e:
-                st.error(f"Ocurrió un error durante la búsqueda en Google Scholar: {e}")
-
-    # 4. Combinar la información de las fuentes seleccionadas
-    all_articles_data = pubmed_articles_data + gs_articles_data
-    articles_info_text = pubmed_info_text + gs_info_text
-
-    if articles_info_text:
-        # 5. Generar resumen consolidado con Gemini
-        with st.spinner("Generando resumen consolidado con Gemini..."):
-            prompt_summary = (f'''
-                            Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te dare.
-                            1. Elabora un resumen detallado que responda a la siguiente pregunta de investigación: {research_question}.                    
-                            2. La respuesta debe estar en español, con lenguaje técnico, profesional, con una redacción y formato adecuados para una conversión óptima a voz mediante gTTS. 
-                            3. IMPORTANTE: No incluyas comentarios adicionales ni secciones de referencias.
-                            
-                            INFORMACIÓN DE ARTÍCULOS CIENTÍFICOS:
-
-                            {articles_info_text}'''
-            )
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response_summary = model.generate_content(prompt_summary)
-            
-        st.subheader("Resumen Consolidado")
-        summary_text = response_summary.text
-        st.markdown(summary_text, unsafe_allow_html=True)
-        
-        # 🔊 Generar audio del resumen
-        with st.spinner("🔊 Generando audio del resumen..."):
-            tts = gTTS(text=summary_text, lang="es", tld='com.mx')
-            audio_path = "resumen_audio.mp3"
-            tts.save(audio_path)
-            st.audio(audio_path, format="audio/mp3")
-
-        # Guardar la información de artículos en la sesión
+        # Generar articles_info_text desde los abstracts
+        articles_info_text = ""
+        for i, paper in enumerate(results):
+            authors = ", ".join(paper['authors']) if paper['authors'] else "Desconocido"
+            apa_citation = f"{authors} ({paper['year']}). {paper['title']}."
+            articles_info_text += f"Artículo {i+1}:\nCita APA: {apa_citation}\nAbstract: {paper['abstract']}\n\n"
         st.session_state["articles_info_text"] = articles_info_text
-    else:
-        st.warning("No se pudo generar información de artículos para el resumen.")
 
-# Sección para consulta adicional basada en los abstracts
-if "articles_info_text" in st.session_state:
+    # Mostrar resultados
+    if 'results' in st.session_state and st.session_state['results']:
+        st.header("Resultados de la Búsqueda")
+        st.markdown(card_css, unsafe_allow_html=True)
+        col1, col2 = st.columns(2)
+        for i, paper in enumerate(st.session_state['results'][:num_downloads]):  # Limitar a num_downloads para tarjetas
+            card_html = f"""
+            <div class="card">
+                <div class="card-title">{paper['title']} ({paper['year']})</div>
+                <div class="card-info"><strong>DOI:</strong> {(paper['doi'])}</div>
+                <div class="card-info"><strong>Authors:</strong> {', '.join(paper['authors'])}</div>
+                <div class="card-info"><strong>Publication Date:</strong> {paper['publication_date']}</div>
+                <div class="card-info"><strong>Citations:</strong> {paper['citations']}</div>
+                <div class="card-abstract"><strong>Abstract:</strong> {paper['abstract']}</div>
+            </div>
+            """
+            if i % 2 == 0:
+                with col1:
+                    st.markdown(card_html, unsafe_allow_html=True)
+                    if st.button("Descargar PDF", key=f"download_{paper['pubmed_id']}"):
+                        with st.spinner("Descargando PDF..."):
+                            result = pdf_downloader.download_paper(
+                                url=f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}/",
+                                filename=f"paper_{paper['pubmed_id']}",
+                                doi=f"{paper['doi']}"
+                            )
+                            status = 'successful' if result['success'] else 'failed'
+                            download_tracker.add_download(status, paper, result['message'], result['filename'] if result['success'] else None)
+                            if result['success']:
+                                st.success(result['message'])
+                                file_path = pdf_downloader.output_dir / result['filename']
+                                with open(file_path, 'rb') as f:
+                                    st.download_button("Descargar archivo", data=f, file_name=result['filename'], mime="application/pdf", key=f"download_file_{paper['pubmed_id']}")
+                            else:
+                                st.error(result['message'])
+            else:
+                with col2:
+                    st.markdown(card_html, unsafe_allow_html=True)
+                    if st.button("Descargar PDF", key=f"download_{paper['pubmed_id']}"):
+                        with st.spinner("Descargando PDF..."):
+                            result = pdf_downloader.download_paper(
+                                url=f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}/",
+                                filename=f"paper_{paper['pubmed_id']}",
+                                doi=f"{paper['doi']}"
+                            )
+                            status = 'successful' if result['success'] else 'failed'
+                            download_tracker.add_download(status, paper, result['message'], result['filename'] if result['success'] else None)
+                            if result['success']:
+                                st.success(result['message'])
+                                file_path = pdf_downloader.output_dir / result['filename']
+                                with open(file_path, 'rb') as f:
+                                    st.download_button("Descargar archivo", data=f, file_name=result['filename'], mime="application/pdf", key=f"download_file_{paper['pubmed_id']}")
+                            else:
+                                st.error(result['message'])
+
+        if st.button("Descargar todos los artículos"):
+            with st.spinner("Descargando artículos..."):
+                failed_downloads = []
+                summaries = []
+                for paper in st.session_state['results'][:num_downloads]:
+                    result = pdf_downloader.download_paper(
+                        url=f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}/",
+                        doi=f"{paper['doi']}",
+                        filename=f"paper_{paper['pubmed_id']}",
+                        pubmed_id=paper['pubmed_id']
+                    )
+                    status = 'successful' if result['success'] else 'failed'
+                    download_tracker.add_download(status, paper, result['message'], result['filename'] if result['success'] else None)
+                    if result['success']:
+                        st.success(f"Descargado: {paper['title']} - {result['message']}")
+                        file_path = pdf_downloader.output_dir / result['filename']
+                        pdf_text = extract_text_from_pdf_file(file_path)
+                        # st.write(f'TEXTO EXTRAÍDO: {pdf_text}')
+                        if pdf_text:
+                            summary = generate_summary_with_gemini(pdf_text, research_question)
+                            summaries.append(f"Resumen de '{paper['title']}': {summary}")
+                    else:
+                        # Añadir URL de PubMed a los fallidos
+                        failed_downloads.append({
+                            'Title': paper['title'],
+                            'PubMed ID': paper['pubmed_id'],
+                            'Reason': result['message'],
+                            'PubMed URL': f"https://pubmed.ncbi.nlm.nih.gov/{paper['pubmed_id']}/"
+                        })
+                
+                st.session_state["summaries"] = summaries
+                if failed_downloads:
+                    st.subheader("Artículos no descargados")
+                    failed_df = pd.DataFrame(failed_downloads)
+                    # Mejorar presentación de la tabla con CSS
+                    st.dataframe(failed_df.style.set_properties(**{
+                        'background-color': '#4a2e2e',
+                        'border-color': '#ef9a9a',
+                        'padding': '8px',
+                        'text-align': 'left',
+                        'color': '#e0e0e0'
+                    }).set_table_styles([
+                        {'selector': 'th', 'props': [('background-color', '#f44336'), ('color', 'white'), ('font-weight', 'bold'), ('text-align', 'center')]},
+                        {'selector': 'td', 'props': [('border-bottom', '1px solid #555')]}
+                    ]))
+                else:
+                    st.success("Todos los artículos descargados con éxito!")
+
+                # Generar resumen completo con estilo mejorado
+                if st.session_state["articles_info_text"] or st.session_state["summaries"]:
+                    with st.spinner("Generando resumen completo..."):
+                        full_summary = generate_full_summary(st.session_state["articles_info_text"], st.session_state["summaries"], research_question)
+                        # full_summary = procesar_texto(full_summary)
+                        st.markdown(summary_css, unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="summary-container">
+                            <h2>Resumen Completo</h2>
+                            {full_summary}
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.warning("No hay suficiente información para generar un resumen completo.")
+
+    # if st.button("Mostrar historial de descargas"):
+    #     downloads = download_tracker.get_downloads()
+    #     if downloads:
+    #         st.dataframe(pd.DataFrame(downloads))
+    #     else:
+    #         st.info("No hay descargas aún.")
+
+    # Consulta adicional
     st.markdown("---")
-    st.subheader("Consulta Adicional Basada en los Abstracts")
-    followup_question = st.text_input("Introduce tu consulta adicional basada en los abstracts:")
+    st.subheader("Consulta Adicional")
+    followup_question = st.text_input("Consulta adicional basada en abstracts y textos completos:")
     if st.button("Buscar respuesta adicional"):
-        with st.spinner("Generando respuesta con Gemini..."):
+        with st.spinner("Generando respuesta..."):
             model = genai.GenerativeModel('gemini-2.0-flash')
+            combined_content = st.session_state["articles_info_text"] + "\n\n" + "\n\n".join(st.session_state["summaries"])
             prompt_followup = (
-                f"Utilizando la siguiente información de artículos:\n\n{st.session_state['articles_info_text']}\n\n"
+                f"Utilizando la siguiente información de artículos:\n\n{combined_content}\n\n"
                 f"Responde únicamente con el resumen de forma detallada y en español a la siguiente consulta: '{followup_question}'.\n\n"
                 f"EVITA CUALQUIER OTRO COMENTARIO DISTINTO AL RESUMEN"
-            )
+            )            
             response_followup = model.generate_content(prompt_followup)
-        
-        st.subheader("Respuesta Adicional")
-        followup_text = response_followup.text
-        st.write(followup_text)
-    try:
-        st.subheader("Bibliografía")
-        st.table(all_articles_data)
-    except:
-        pass
-        # # Generar audio de la respuesta adicional
-        # with st.spinner("Generando audio de la respuesta adicional..."):
-        #     tts_followup = gTTS(text=followup_text, lang="es")
-        #     audio_followup_path = "respuesta_audio.mp3"
-        #     tts_followup.save(audio_followup_path)
-        #     st.audio(audio_followup_path, format="audio/mp3")
+            st.subheader("Respuesta Adicional")
+            st.write(response_followup.text)
 
+if __name__ == "__main__":
+    main()

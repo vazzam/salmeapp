@@ -1,4 +1,4 @@
-import altair as alt
+# import altair as alt
 import streamlit as st
 import pandas as pd
 import time
@@ -21,6 +21,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+
 
 
 def get_base64_image(image_path):
@@ -1256,3 +1258,21 @@ if gen_pdf:
         time.sleep(0.025)
     st.success(f'Se ha creado el archivo PDF: {nombre_completo}.pdf')
     fx.insert_css_url('download_button', response)
+
+wake_lock_script = """
+<script>
+let wakeLock = null;
+const requestWakeLock = async () => {
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock activado');
+    } catch (err) {
+        console.log('Error al activar Wake Lock: ', err);
+    }
+};
+requestWakeLock();
+</script>
+"""
+
+# Inyectar el script en la app
+html(wake_lock_script)

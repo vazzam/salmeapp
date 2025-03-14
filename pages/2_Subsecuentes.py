@@ -687,3 +687,20 @@ if st.session_state.bus_nombre != '':
     if app_alergias != '':
         aviso_alergias = f'Alergias: {app_alergias}'
 
+wake_lock_script = """
+<script>
+let wakeLock = null;
+const requestWakeLock = async () => {
+    try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock activado');
+    } catch (err) {
+        console.log('Error al activar Wake Lock: ', err);
+    }
+};
+requestWakeLock();
+</script>
+"""
+
+# Inyectar el script en la app
+html(wake_lock_script)
