@@ -499,33 +499,44 @@ def audio_recorder_transcriber(nota: str):
             ''')
         elif nota == 'primera_paido':
             response = model.generate_content(f'''
-            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
+            **Instrucciones generales**  
+            Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote exclusivamente en la transcripción de consulta proporcionada. La transcripción refleja una conversación entre el médico, el paciente y su madre; identifica claramente quién habla en cada intervención para garantizar una reconstrucción precisa y coherente del relato clínico.
+            **Objetivo: Redactar la evolución del padecimiento del paciente, desde su inicio hasta el estado actual, integrando únicamente la información clínica relevante extraída de las intervenciones del paciente durante la consulta.
 
-            OBJETIVO: Redactar la evolución del padecimiento del paciente, desde su inicio hasta el estado actual, integrando únicamente la información clínica relevante extraída de las intervenciones del paciente durante la consulta.
+            **Formato requerido**  
+            - Idioma: Español  
+            - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea  
+            - Extensión mínima de la descripción del padecimiento: 400 a 500 palabras, excluyendo las secciones adicionales (ANTECEDENTES PERSONALES PATOLÓGICOS, PERINATALES, NEURODESARROLLO, DESARROLLO ESCOLAR)  
+            - Lenguaje técnico propio de la psicopatología y semiología psiquiátrica  
+            - Redacción en tercera persona  
 
-            FORMATO REQUERIDO:
-            - Idioma español
-            - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea
-            - Extensión mínima de 300 a 400 palabras
-            - Lenguaje técnico apropiado para documentación clínica
-            - Escrito en tercera persona
+            **Información a incluir**  
+            - **Introducción**: Género del paciente, grupo etario (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años), contexto sociofamiliar (ej. ausencia de padres, resguardo por autoridades, estancia en albergue), dinámica familiar (ej. cordial, disfuncional, con violencia), integración familiar (integrada o desintegrada, con quién cohabita), aspectos relevantes de los padres o cuidadores que influyan en el padecimiento, descripción previa de personalidad, temperamento y conducta, uso excesivo de dispositivos electrónicos (TV, celular, tablet, PC), y eventos traumáticos previos.  
+            - Factores desencadenantes o exacerbantes identificados.
+            - Cronología detallada de síntomas y manifestaciones desde su inicio (incluyendo síntomas afectivos, cognitivos, conductuales, patrón de sueño, alimentación, entre otros)
+            - Cambios en severidad e intensidad a lo largo del tiempo.   
+            - Impacto del padecimiento en la funcionalidad diaria: desempeño académico y escolar, relaciones familiares, y socialización con amigos.
+            - Una o dos citas literales del paciente que ilustren su padecimiento.  
+            - Estado actual del paciente, incluyendo síntomas presentes y la principal motivación para acudir a consulta.  
 
-            INCLUIR:
-            - Antecedentes relevantes del padecimiento
-            - Cronología detallada de síntomas y manifestaciones
-            - Cambios en la severidad e intensidad a lo largo del tiempo
-            - Factores desencadenantes o exacerbantes identificados
-            - Estado actual del paciente
+            **Secciones adicionales**  
+            Incluye al final de la descripción del padecimiento, usando únicamente la información de la transcripción:  
+            1. **Antecedentes Personales Patológicos**: Presencia o historial de alergias, cirugías, fracturas, trauma craneoencefálico con pérdida de conciencia, convulsiones, transfusiones, enfermedades crónicas (ej. asma, diabetes, trastornos tiroideos), medicamentos actuales (nombre, dosis, duración), y estado del esquema de vacunación.  
+            2. **Perinatales**: Curso del embarazo (normoevolutivo o con complicaciones como amenaza de aborto, preeclampsia, infecciones), tipo de nacimiento (parto o cesárea, con motivo si aplica), semanas de gestación, complicaciones al nacer, peso y talla al nacer, esfuerzo respiratorio (normal o con dificultad), intervenciones neonatales, alta con la madre, e ictericia posnatal.  
+            3. **Neurodesarrollo**: Indicar si hubo retraso en hitos como sostén cefálico, sedestación, gateo, bipedestación, deambulación, lenguaje simple, oraciones, conversación fluida y control de esfínteres, especificando edades en meses si se menciona.  
+            4. **Desarrollo Escolar**: Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), grado actual, edad de inicio por etapa, reportes escolares (tipo y existencia), desempeño académico (calificaciones, materias reprobadas si se mencionan), y quejas o rendimiento actual.  
 
-            OMITIR:
-            - Toda información que no corresponda a la evolución del padecimiento del paciente, incluyendo sugerencias terapéuticas realizadas o propuestas durante la consulta
-            - Información personal no relevante para la evolución
-            - Recomendaciones o plan de tratamiento
-            - Juicios de valor
-            - Diagnósticos
-            - Análisis sobre el caso
-            - Resúmenes al final del texto
+            **Información a omitir**  
+            - Datos no relacionados con la evolución del padecimiento (excepto lo requerido en las secciones adicionales).  
+            - Información personal irrelevante, sugerencias terapéuticas, planes de tratamiento, juicios de valor, diagnósticos (salvo los explícitamente mencionados en el padecimiento), análisis del caso o resúmenes finales.  
 
+            GUÍAS ADICIONALES:
+
+            Mantén la objetividad, basándote solo en lo expresado por el paciente y su madre.
+            Sigue una cronología clara desde el inicio de los síntomas hasta el estado actual.
+            Integra las secciones adicionales de forma concisa.
+            Usa terminología técnica y evita redundancias.
+                                              
             IMPORTANTE: Dado que la transcripción incluye tanto preguntas del médico como respuestas del paciente, considera únicamente los fragmentos en los que el paciente describe su experiencia subjetiva. Ignora las intervenciones del médico excepto cuando sirvan para contextualizar una respuesta del paciente.
 
             ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS A CONTINUACIÓN:
