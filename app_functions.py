@@ -444,7 +444,7 @@ def audio_recorder_transcriber(nota: str):
             return None
 
     def resumen_transcripcion(transcripcion, nota):
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
         if nota == "primera":
             response = model.generate_content(f'''
                 INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.

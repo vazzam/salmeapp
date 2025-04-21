@@ -504,15 +504,26 @@ def generate_summary_with_gemini(text: str, research_question: str) -> str:
         return "No summary available due to processing error."
 
 def generate_full_summary(articles_info_text: str, summaries: List[str], research_question: str) -> str:
-    model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+    model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
     combined_content = articles_info_text + "\n\n" + "\n\n".join(summaries)
     prompt = f"""
-    Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te proporciono:
-    1. Elabora un resumen detallado de entre 800 y 1000 palabras que responda a la pregunta de investigación: '{research_question}'. 
-    2. La respuesta debe estar en español, con una redacción adecuada profesional y lenguaje técnico.
-    3. Usa tanto los abstracts como los resúmenes de PDFs descargados para enriquecer el resumen.
-    4. No incluyas comentarios adicionales ni secciones de referencias, ni algún texto o palabras que no tengan que ver con el tema
-    5. No uses ```
+    Asume el rol de un especialista en medicina con experiencia en investigación clínica y revisión sistemática de literatura científica. Basándote exclusivamente en los artículos científicos proporcionados:
+
+    Sintetiza un informe técnico de 800-1000 palabras que responda con precisión a la pregunta: '{research_question}'.
+    El informe debe:
+
+    Estar redactado en español académico-médico
+    Seguir una estructura lógica (introducción, desarrollo de hallazgos clave, conclusiones)
+    Integrar datos cuantitativos relevantes cuando estén disponibles
+    Señalar el nivel de evidencia de las afirmaciones principales
+    Identificar posibles limitaciones metodológicas en los estudios analizados
+
+
+    Utiliza tanto la información de los abstracts como de los textos completos proporcionados.
+    Mantén un tono objetivo y analítico, evitando generalizaciones no respaldadas por los datos.
+    Prioriza la información más reciente y la de mayor calidad metodológica.
+    No incluyas: referencias bibliográficas, comentarios metacognitivos, aclaraciones sobre tu funcionamiento, ni contenido no relacionado directamente con la pregunta.
+
     Información: '{combined_content}'
     """
     try:
@@ -588,13 +599,29 @@ def main():
 
     if st.button("Iniciar búsqueda") and research_question:
         with st.spinner("Generando consulta con Gemini..."):
-            model = genai.GenerativeModel('gemini-2.0-pro-exp-02-05')
+            model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
             prompt_terms_pubmed = f'''
-            Como experto en búsquedas médicas, analiza la siguiente pregunta: '{research_question}'. Identifica los conceptos principales y términos MeSH relevantes. 
-            Formula una búsqueda booleana optimizada para PubMed que capture todos los aspectos importantes de la pregunta. Proporciona solo la estrategia de búsqueda 
-            en inglés, sin explicaciones adicionales ni comentarios. La búsqueda debe incluir operadores booleanos (AND, OR, NOT), términos MeSH entre corchetes cuando 
-            sea apropiado, y filtros relevantes como [Title/Abstract] cuando sea necesario para maximizar precisión y exhaustividad.
-            Solo retorna la pregunta en inglés en texto plano sin decoradores o markdown, también evita comentarios adicionales,
+            Como especialista en informática biomédica y estrategias de búsqueda en literatura médica:
+
+            1. Analiza la siguiente pregunta clínica: '{research_question}'
+
+            2. Desarrolla una estrategia de búsqueda avanzada para PubMed que:
+            - Identifique y utilice los términos MeSH específicos y relevantes
+            - Incorpore sinónimos clave y variaciones terminológicas
+            - Utilice subheadings MeSH apropiados para aumentar precisión
+            - Combine adecuadamente operadores booleanos (AND, OR, NOT)
+            - Emplee operadores de truncamiento (*) cuando sea beneficioso
+            - Incluya filtros de campo estratégicos [Title/Abstract], [Publication Type], etc.
+            - Aplique delimitadores temporales si son relevantes para la pregunta
+
+            3. La estrategia debe equilibrar:
+            - Sensibilidad (para capturar toda la evidencia relevante)
+            - Especificidad (para minimizar resultados irrelevantes)
+            - Adaptación a la jerarquía de evidencia científica aplicable a la pregunta
+
+            4. Proporciona únicamente la cadena de búsqueda final en inglés, en texto plano, sin comentarios adicionales, sin etiquetas markdown, y lista para copiar directamente en PubMed.
+
+            Tu respuesta debe contener exclusivamente la cadena de búsqueda, sin explicaciones previas ni posteriores.
             '''
             response_terms_pubmed = model.generate_content(prompt_terms_pubmed)
             boolean_query_pubmed = response_terms_pubmed.text.strip()
