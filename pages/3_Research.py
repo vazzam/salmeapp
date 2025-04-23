@@ -507,24 +507,19 @@ def generate_full_summary(articles_info_text: str, summaries: List[str], researc
     model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
     combined_content = articles_info_text + "\n\n" + "\n\n".join(summaries)
     prompt = f"""
-    Asume el rol de un especialista en medicina con experiencia en investigación clínica y revisión sistemática de literatura científica. Basándote exclusivamente en los artículos científicos proporcionados:
+    Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te proporciono:
 
-    Sintetiza un informe técnico de 800-1000 palabras que responda con precisión a la pregunta: '{research_question}'.
-    El informe debe:
+1. Elabora un resumen detallado de entre 800 y 1000 palabras, sin contar las palabras de las citas bibliográficas, que responda a la pregunta de investigación: '{research_question}'.
 
-    Estar redactado en español académico-médico
-    Seguir una estructura lógica (introducción, desarrollo de hallazgos clave, conclusiones)
-    Integrar datos cuantitativos relevantes cuando estén disponibles
-    Señalar el nivel de evidencia de las afirmaciones principales
-    Identificar posibles limitaciones metodológicas en los estudios analizados
+2. La respuesta debe estar en español, con una redacción adecuada profesional y lenguaje técnico.
 
+3. Usa tanto los abstracts como los resúmenes de PDFs descargados para enriquecer el resumen.
 
-    Utiliza tanto la información de los abstracts como de los textos completos proporcionados.
-    Mantén un tono objetivo y analítico, evitando generalizaciones no respaldadas por los datos.
-    Prioriza la información más reciente y la de mayor calidad metodológica.
-    No incluyas: referencias bibliográficas, comentarios metacognitivos, aclaraciones sobre tu funcionamiento, ni contenido no relacionado directamente con la pregunta.
+4. No incluyas comentarios adicionales, ni algún texto o palabras que no tengan que ver con el tema
+5. Incluye la cita bibliográfica en formato APA 7 Parenthetical, cuando corresponda
+5. No uses ```
 
-    Información: '{combined_content}'
+Información: '{combined_content}'
     """
     try:
         response = model.generate_content(prompt)

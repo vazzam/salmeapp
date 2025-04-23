@@ -510,9 +510,11 @@ Elaborar un informe que describa la evolución del padecimiento del paciente des
 - **Idioma**: Español.  
 - **Estilo**:  
   - Párrafos continuos (sin viñetas, subtítulos ni saltos dobles de línea).  
-  - Redacción en tercera persona.  
+  - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- **Extensión**: La descripción principal debe tener entre 300 y 400 palabras (excluyendo las secciones adicionales).  
+- **Extensión**: La descripción principal debe tener entre 200 y 350 palabras (excluyendo las secciones adicionales).
+  - Evitar redundancias.
+  - Mantener un orden cronológico.
 
 **Contenido a Incluir en la Evolución del Padecimiento**  
 1. **Datos Iniciales y Contexto**:  
@@ -558,7 +560,7 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
 - Integrar de forma concisa las secciones adicionales, sin redundancias.  
 - Descartar las intervenciones del médico, salvo cuando sean necesarias para interpretar o clarificar la experiencia subjetiva del paciente.
 
-            IMPORTANTE: ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS DE REDACCIÓN A CONTINUACIÓN:
+            IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
 
             EJEMPLO NÚMERO 1:
             "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
