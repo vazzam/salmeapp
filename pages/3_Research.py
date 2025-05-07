@@ -488,7 +488,7 @@ def extract_text_from_pdf_file(pdf_path: Path) -> str:
         return ""
 
 def generate_summary_with_gemini(text: str, research_question: str) -> str:
-    model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp-01-21')
+    model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
     prompt = f"""
     Como experto en análisis de literatura científica, genera un resumen conciso del siguiente texto, preferentemente y de ser posible
     orientado a responder la pregunta de investigación: '{research_question}'. 
@@ -516,7 +516,7 @@ def generate_full_summary(articles_info_text: str, summaries: List[str], researc
 3. Usa tanto los abstracts como los resúmenes de PDFs descargados para enriquecer el resumen.
 
 4. No incluyas comentarios adicionales, ni algún texto o palabras que no tengan que ver con el tema
-5. Incluye la cita bibliográfica en formato APA 7 Parenthetical, cuando corresponda
+5. Incluye la cita bibliográfica en formato APA 7 Parenthetical, cuando corresponda (no más de una por cita)
 5. No uses ```
 
 Información: '{combined_content}'

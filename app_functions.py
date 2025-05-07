@@ -454,7 +454,7 @@ def audio_recorder_transcriber(nota: str):
                 FORMATO REQUERIDO:
                 - Idioma español
                 - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea
-                - Extensión mínima de 300 a 400 palabras
+                - Extensión de entre 300 a 600 palabras según lo amerite el caso
                 - Lenguaje técnico apropiado para documentación clínica
                 - Escrito en tercera persona
 
@@ -512,7 +512,7 @@ Elaborar un informe que describa la evolución del padecimiento del paciente des
   - Párrafos continuos (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- **Extensión**: La descripción principal debe tener entre 200 y 350 palabras (excluyendo las secciones adicionales).
+- **Extensión**: La descripción principal debe tener entre 300 y 400 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
   - Mantener un orden cronológico.
 
