@@ -603,12 +603,12 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
             response = model.generate_content(f'''
             INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
 
-            OBJETIVO: Redactar una nota de evolución clínica del paciente que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
+            OBJETIVO: Redactar una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
 
             FORMATO REQUERIDO:
             - Idioma español
-            - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea
-            - Extensión mínima de 300 a 400 palabras
+            - Texto en párrafos continuos (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
+            - Extensión mínima de 200 a 250 palabras según amerite el caso
             - Lenguaje técnico apropiado para documentación clínica
             - Escrito en tercera persona
 
