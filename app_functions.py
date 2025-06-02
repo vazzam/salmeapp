@@ -509,10 +509,10 @@ Elaborar un informe que describa la evolución del padecimiento del paciente des
 **Requisitos del Formato de la Respuesta**  
 - **Idioma**: Español.  
 - **Estilo**:  
-  - Párrafos continuos (sin viñetas, subtítulos ni saltos dobles de línea).  
+  - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- **Extensión**: La descripción principal debe tener entre 300 y 400 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+- **Extensión**: La descripción principal debe tener entre 250 a 300 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
   - Mantener un orden cronológico.
 
@@ -533,21 +533,22 @@ Elaborar un informe que describa la evolución del padecimiento del paciente des
 **Secciones Adicionales (Incluir al Final de la Descripción Principal)**  
 Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
 
-1. **Antecedentes Personales Patológicos**:  
+1. ANTECEDENTES PERSONALES PATOLÓGICOS:  
    - Historial de alergias, cirugías, fracturas, trauma craneoencefálico (con pérdida de conciencia), convulsiones, transfusiones, enfermedades crónicas (ej. asma, diabetes, trastornos tiroideos), medicamentos actuales (nombre, dosis, duración) y estado del esquema de vacunación.
-
-2. **Perinatales**:  
+   - PSIQUIÁTRICOS: Atenciones previas por parte de especialistas en salud mental (psicólogos y psiquiátras) incluyendo fechas de inicio, duración, síntomas que presentaban, diagnósticos dados, tratamientos y si hubo mejoría. También incluye si ha presentado hospitalizaciones en centros especializados en salud mental o adicciones así como si ha presentado conductas autolesivas (número de ocasiones, fechas, métodos). Incluye la información únicamente si se menciona en la transcripción. 
+2. PERINATALES:  
    - Curso del embarazo (normoevolutivo o con complicaciones como amenaza de aborto, preeclampsia, infecciones, etc.).  
-   - Tipo de nacimiento (parto o cesárea, motivo si aplica), si fue semanas de gestación (si fue pretérmino, a término o postérmino), complicaciones al nacer, peso y talla, esfuerzo respiratorio, intervenciones neonatales, alta con la madre e ictericia posnatal.
+   - Tipo de nacimiento (parto o cesárea, motivo si aplica), si fue semanas de gestación (si fue pretérmino, a término o postérmino), complicaciones al nacer, peso y talla, esfuerzo respiratorio, intervenciones neonatales, alta con la madre y si en las semanas siguientes al alta existió alguna complicación como infecciones, ictericia u otras.
 
-3. **Neurodesarrollo**:  
-   - Desempeño de hitos (sostén cefálico, sedestación, gateo, bipedestación, deambulación, lenguaje: desde palabras simples hasta conversación fluida, control de esfínteres), especificando la edad en meses cuando se mencione.
+3. NEURODESARROLLO:  
+   - Desempeño de hitos (sostén cefálico, sedestación, gateo, bipedestación, deambulación, lenguaje: desde palabras simples hasta conversación fluida, control de esfínteres), especificando la edad en meses cuando se mencione. Solo utilizar la información de la transcripción si no se menciona no la incluyas.
 
-4. **Desarrollo Escolar**:  
+4. DESARROLLO ESCOLAR:  
    - Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), edad de inicio por etapa, reportes escolares (tipo, existencia), desempeño académico (notas, materias reprobadas si se indican) y observaciones sobre el rendimiento o quejas actuales; incluir el grado actual
 
-5. **Impresión diagnóstica**
+5. Impresión diagnóstica
     - En base a los síntomas narrados establecer una hipotesis diagnóstica con sus especificadores si es que los hay así como los criterios diagnósticos acorde a DSM 5 o CIE 10.
+    - Puedes mencionar diagnósticos concurrentes o complementarios al principal
     - 1 a 2 diagnósticos diferenciales
                                               
 **Información a Omitir**  
@@ -607,17 +608,18 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
 
             FORMATO REQUERIDO:
             - Idioma español
-            - Texto en párrafos continuos (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
-            - Extensión mínima de 200 a 250 palabras según amerite el caso
+            - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
+            - Extensión mínima de 150 a 200 palabras según amerite el caso
             - Lenguaje técnico apropiado para documentación clínica
             - Escrito en tercera persona
 
             INCLUIR:
-            - Antecedentes relevantes del padecimiento
-            - Cronología detallada de síntomas y manifestaciones (cognitivos, emocionales, ansiosos, afectivos o anímicos, del sueño, del apetito y adherencia al tratamiento)
+            - Antecedentes relevantes del padecimiento y particularmente del estado y evolución desde la última consulta a la actual
+            - Cronología detallada de síntomas y manifestaciones (cognitivos, de socialización, emocionales, ansiosos, afectivos o anímicos, del sueño, del apetito y adherencia al tratamiento)
             - Cambios en la severidad e intensidad de los síntomas a lo largo del tiempo
             - Factores desencadenantes o exacerbantes identificados por el paciente
             - Estado actual del paciente
+            - Una sección llamada "ANÁLISIS:" donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
 
             OMITIR:
             - Cualquier información que no forme parte de la evolución clínica del padecimiento
@@ -660,8 +662,8 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
     with col1:
         st.text('')
         audio_value =  mic_recorder(
-        start_prompt="Toma nota 💬",
-        stop_prompt="Detener 🟥",
+        start_prompt="💬",
+        stop_prompt="🟥",
         just_once=False,
         use_container_width=True,
         format="webm",
