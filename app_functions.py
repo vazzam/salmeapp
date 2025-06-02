@@ -680,11 +680,11 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
             # st.success("Grabación iniciada")
 
     with col2:
-        if st.button("Transcribir...", use_container_width=True, icon='🔮'):
+        if st.button("", use_container_width=True, icon='🔮'): #Transcribir...
             if st.session_state["audio_data"]:
                 st.session_state["is_recording"] = False
                 # st.success("Grabación detenida")
-                with st.spinner("Segmentando y transcribiendo..."):
+                with st.spinner(""): #Segmentando y transcribiendo
                     transcripcion = transcribe_audio(st.session_state["audio_data"])
                     if transcripcion:
                         st.session_state["transcripcion"] = transcripcion
