@@ -18,7 +18,7 @@ from pathlib import Path
 from streamlit.components.v1 import html
 
 st.set_page_config(
-    page_title=" Subsecuentes",
+    page_title=" 1a PAIDO",
     page_icon="fav.png",  # EP: how did they find a symbol?
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -76,7 +76,7 @@ st.markdown(f"""
         }});
     </script>
 """, unsafe_allow_html=True)
-st.markdown('<div class="title-container"><h1>Nota subsecuente</h1>', unsafe_allow_html=True)
+st.markdown('<div class="title-container"><h1>1a PAIDO</h1>', unsafe_allow_html=True)
 
 header_html = f"""
 <div class="app-header">

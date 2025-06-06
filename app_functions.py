@@ -500,37 +500,35 @@ def audio_recorder_transcriber(nota: str):
         elif nota == 'primera_paido':
             response = model.generate_content(f'''
 
-**Instrucciones Generales**  
-Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la **evolución detallada del padecimiento del paciente**. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
+Instrucciones Generales  
+Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
 
-**Objetivo Principal**  
+Objetivo Principal  
 Elaborar un informe que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
 
-**Requisitos del Formato de la Respuesta**  
-- **Idioma**: Español.  
-- **Estilo**:  
+Requisitos del Formato de la Respuesta  
+- Idioma: Español.  
+- Estilo:  
   - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- **Extensión**: La descripción principal debe tener entre 250 a 300 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+- Extensión: La descripción principal debe tener entre 200 a 250 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
   - Mantener un orden cronológico.
 
-**Contenido a Incluir en la Evolución del Padecimiento**  
-1. **Datos Iniciales y Contexto**:  
+Contenido a Incluir en la Evolución del Padecimiento  
+1. Datos Iniciales y Contexto:  
    - Género y grupo etario del paciente (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años).  
    - Contexto sociofamiliar (por ejemplo, presencia o ausencia de padres, custodia, albergue, etc.) y dinámica familiar (relaciones, integración, factores parentales relevantes, eventos traumáticos, uso excesivo de dispositivos electrónicos, etc.).  
-2. **Descripción Clínica Detallada**:  
+2. Descripción Clínica Detallada:  
    - Factores desencadenantes y exacerbantes.  
    - Cronología de síntomas y manifestaciones (afectivos, ansiosos, cognitivos, conductuales, patrón de sueño, alimentación, etc.).  
    - Evolución en severidad e intensidad de los síntomas a lo largo del tiempo.  
    - Impacto en la funcionalidad diaria: desempeño académico, relaciones familiares, socialización, etc.  
-3. **Elementos Ilustrativos**:  
-   - Incluir una o dos citas textuales del paciente que reflejen su experiencia subjetiva.  
-4. **Estado Actual**:  
+3. Estado Actual:  
    - Síntomas presentes y la principal motivación para acudir a consulta.
 
-**Secciones Adicionales (Incluir al Final de la Descripción Principal)**  
+Secciones Adicionales (Incluir al Final de la Descripción Principal)  
 Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
 
 1. ANTECEDENTES PERSONALES PATOLÓGICOS:  
@@ -548,14 +546,14 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
 
 5. Impresión diagnóstica
     - En base a los síntomas narrados establecer una hipotesis diagnóstica con sus especificadores si es que los hay así como los criterios diagnósticos acorde a DSM 5 o CIE 10.
-    - Puedes mencionar diagnósticos concurrentes o complementarios al principal
+    - Puedes mencionar diagnósticos concurrentes o complementarios
     - 1 a 2 diagnósticos diferenciales
                                               
-**Información a Omitir**  
+Información a Omitir  
 - Todo dato que no esté relacionado con la evolución del padecimiento, salvo lo requerido en las secciones adicionales.  
 - Información personal irrelevante, sugerencias terapéuticas, planes de tratamiento, juicios de valor, diagnósticos no explícitamente mencionados en la transcripción, análisis del caso o resúmenes finales así como expresiones coloquiales salvo las cita textuales de los dichos por el paciente o su acompañante
 
-**Guías Adicionales**  
+Guías Adicionales  
 - Mantener la objetividad: basar el informe solo en lo expresado por el paciente y acompañante (y, en su caso, su madre para contextualizar).  
 - Seguir una cronología clara, desde la aparición de los síntomas hasta el estado actual.  
 - Integrar de forma concisa las secciones adicionales, sin redundancias.  
@@ -609,7 +607,7 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
             FORMATO REQUERIDO:
             - Idioma español
             - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
-            - Extensión mínima de 150 a 200 palabras según amerite el caso
+            - Extensión de 100 a 150 palabras
             - Lenguaje técnico apropiado para documentación clínica
             - Escrito en tercera persona
 
