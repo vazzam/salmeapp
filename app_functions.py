@@ -512,7 +512,7 @@ Requisitos del Formato de la Respuesta
   - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- Extensión: La descripción principal debe tener entre 200 a 250 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+- Extensión: La descripción principal debe tener entre 250 a 300 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
   - Mantener un orden cronológico.
 
@@ -558,6 +558,7 @@ Guías Adicionales
 - Seguir una cronología clara, desde la aparición de los síntomas hasta el estado actual.  
 - Integrar de forma concisa las secciones adicionales, sin redundancias.  
 - Descartar las intervenciones del médico, salvo cuando sean necesarias para interpretar o clarificar la experiencia subjetiva del paciente.
+- No utilices la palabras "autolisis" o "autolítico"
 
             IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
 
@@ -607,7 +608,7 @@ Guías Adicionales
             FORMATO REQUERIDO:
             - Idioma español
             - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
-            - Extensión de 100 a 150 palabras
+            - Extensión de 150 a 200 palabras
             - Lenguaje técnico apropiado para documentación clínica
             - Escrito en tercera persona
 
@@ -617,7 +618,7 @@ Guías Adicionales
             - Cambios en la severidad e intensidad de los síntomas a lo largo del tiempo
             - Factores desencadenantes o exacerbantes identificados por el paciente
             - Estado actual del paciente
-            - Una sección llamada "ANÁLISIS:" donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
+            - Después de un salto de línea escribe un análisis donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
 
             OMITIR:
             - Cualquier información que no forme parte de la evolución clínica del padecimiento
