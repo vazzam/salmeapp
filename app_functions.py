@@ -507,12 +507,12 @@ Objetivo Principal
 Elaborar un informe que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
 
 Requisitos del Formato de la Respuesta  
-- Idioma: Español.  
+- Idioma: Español México.  
 - Estilo:  
   - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
-- Extensión: La descripción principal debe tener entre 250 a 300 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+- Extensión: La descripción principal debe tener entre 250 a 350 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
   - Mantener un orden cronológico.
 
@@ -528,26 +528,27 @@ Contenido a Incluir en la Evolución del Padecimiento
 3. Estado Actual:  
    - Síntomas presentes y la principal motivación para acudir a consulta.
 
-Secciones Adicionales (Incluir al Final de la Descripción Principal)  
+Sección Adicional (Incluir al Final de la Descripción Principal)  
 Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
-
-1. ANTECEDENTES PERSONALES PATOLÓGICOS:  
-   - Historial de alergias, cirugías, fracturas, trauma craneoencefálico (con pérdida de conciencia), convulsiones, transfusiones, enfermedades crónicas (ej. asma, diabetes, trastornos tiroideos), medicamentos actuales (nombre, dosis, duración) y estado del esquema de vacunación.
-   - PSIQUIÁTRICOS: Atenciones previas por parte de especialistas en salud mental (psicólogos y psiquiátras) incluyendo fechas de inicio, duración, síntomas que presentaban, diagnósticos dados, tratamientos y si hubo mejoría. También incluye si ha presentado hospitalizaciones en centros especializados en salud mental o adicciones así como si ha presentado conductas autolesivas (número de ocasiones, fechas, métodos). Incluye la información únicamente si se menciona en la transcripción. 
-2. PERINATALES:  
-   - Curso del embarazo (normoevolutivo o con complicaciones como amenaza de aborto, preeclampsia, infecciones, etc.).  
-   - Tipo de nacimiento (parto o cesárea, motivo si aplica), si fue semanas de gestación (si fue pretérmino, a término o postérmino), complicaciones al nacer, peso y talla, esfuerzo respiratorio, intervenciones neonatales, alta con la madre y si en las semanas siguientes al alta existió alguna complicación como infecciones, ictericia u otras.
-
-3. NEURODESARROLLO:  
-   - Desempeño de hitos (sostén cefálico, sedestación, gateo, bipedestación, deambulación, lenguaje: desde palabras simples hasta conversación fluida, control de esfínteres), especificando la edad en meses cuando se mencione. Solo utilizar la información de la transcripción si no se menciona no la incluyas.
-
-4. DESARROLLO ESCOLAR:  
-   - Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), edad de inicio por etapa, reportes escolares (tipo, existencia), desempeño académico (notas, materias reprobadas si se indican) y observaciones sobre el rendimiento o quejas actuales; incluir el grado actual
-
-5. Impresión diagnóstica
+1. Impresión diagnóstica
     - En base a los síntomas narrados establecer una hipotesis diagnóstica con sus especificadores si es que los hay así como los criterios diagnósticos acorde a DSM 5 o CIE 10.
     - Puedes mencionar diagnósticos concurrentes o complementarios
     - 1 a 2 diagnósticos diferenciales
+2. Examen Mental
+    - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+    - Incluye la descripción basadi en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+        epontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado),
+        presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años concreto), control de impulsos)                                              
+        Ejemplos de examen mental:
+        - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+           volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen 
+           control de impulsos.
+        - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+           inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+           juicio formal y buen control de impulsos.
+        - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+           afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+           o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
                                               
 Información a Omitir  
 - Todo dato que no esté relacionado con la evolución del padecimiento, salvo lo requerido en las secciones adicionales.  
@@ -588,12 +589,6 @@ Guías Adicionales
 
             EJEMPLO NÚMERO 9:
             "El menor tiene el historial que desde prescolar es reportado por inquietud, pero ya en primaria el cuadro es evidente, es un niño inatento, disperso, inquieto, platica, se levanta, deja trabajos incompletos, pierde artículos escolares e incluso ropa, descuidado con el uniforme, se ensucia, es muy poco tolerante con sus compañeros, pelea con ellos, no quiere que hagan ruido, lo que genera ciertas riñas, y por su intolerancia y que quiere corregir a todos ya lo apartan,él se da cuenta de esto, hacen equipos y no lo eligen, pobre concentración, trae la mochila revuelta, este ciclo se ha hecho mas evidente el cuadro por las exigencias propias del 3er año. En casa muy dificil para hacer las tareas, se le tiene que decir muchas veces, y se tarda mucho en terminar cualquier tarea, lo mismo sucede con el aseo personal, sus quehaceres, en la comida está inquieto, no puede hacer mas de una iandicación, come mas o menos bien pero se la pasa platidando en la comida, tiene muy poca tolerancia a todo, siempre dice que se siente "humillado", suele pelear con su hermana de 11a, la socialización es regular, conlal madre se enoa mucho, el estado de ánimo dice que "neutro", se siente ansioso reflejado por estres, irritabilidad, enojo, dice que por estar solo en la escuela, refiere insomnio intermedio, en alguna ocasión llegó a pensar en morir para ir a ver a su papá que murió hace 4 años por covid. La madre lo lleva a un centro llamado cade, se ve el rsumen que les dieron, atendido por un psiquiatra general y una medico general, le prescribieron mfd lp de 20mg 1-0-0, y risperidona 0.25mg-d, se le dio durante un mes, la madre vio muy poca respuesta, y en la escuela con el dx. Que les dieron de tdah mixto bajaron la tensión y bajaron los reportes, por costos ya que subieron la consulta a 1450 pesos y el medicamento, pues mejor ya lo trae a esta institución."
-
-            EJEMPLO NÚMERO 10:
-            "Menor que proviene de familia estructurada, con el padre una relación un poco rispida porque el mismo acepta que está irritable, el cuadro tiene origen desde la infancia, pues padeció leucemia y en la primaria fue victima de acoso escolar por no tener pelo y usar cubrebocas, se fueron a vivir a durango pero regresan a arandas y refiere fue un cambio muy busco para el, tanto por la escuela como por los compañeros, por lo que es muy solitario, poco sociable, en casa se aisla, no habla con la familia se la pasa en el celular jugando, videojuegos de armas y defensas. Pero el dice que hace un año esto se hace muy evidente, se siente con astenia, adinamia, hiporexia, insomnio importante, miedos e inseguridades, afecto hipotímico, llega a pensar en la muerte y el suicido, pensando en el ahorcamaiento o cortarse, sin ningun intento de por medio, refiere sientomatología ansiosa como taquicardia, temblor, dolor precordial, cefalea, dolor de espalda, se siente irritable, intolerante, contesta mal, onicofagia, hiperhidrosis, la madre refiere que muchas noches llega a la habitación de ellos y se duerme con ellos, se le ve con labilidad emocional y llanto, así mismo hace 7 meses termino con la novia y eso también le afectó, escasa relación con sus hermanos mayores, si con su hermana, con la madre bien, pues pasa mucho tiempo en casa con ella, pero acepta que puede llegar a ser grosero con ella. No estudia pero si trabaja, se llega a ir con el padre a trabajar como albañil."
-
-            EJEMPLO NÚMERO 11:
-            "Menor que proviene de familia disfuncional y desintegrada, por infidelidad mutua de ambos padres hace 4a, a raíz de esto y teniendo ella 10a inicia con tristeza, astenia, ideas suicidas, cuadro que fue progresando al empeoramiento y la cronicidad, anhedonia, alteracion grave del sueño, ausentismo escolar, irritabilidad, intolerancia, malas contestaciones, bajan las calificaciones progresivamente, y tiene ya 3 intentos suicidas, cortes en extremidades e ingesta de medicamentos, en junio 2024 inclso estuvo 24 horas ingresaada en la clinica 45, referida por el Centro Médico de Occidente que solo la valoró y la refirió y no la ha visto en ningun momento tratamaiento tampoco ninguno, asi pues aue el cuadro oscilante entre ansiedad y sintomatología depresiva, actualamente refiere sed de aire, labialiadd emocional, llanto, ultimo pensamaiento suicida ayer, sin factor desencadenante, llegan ya de forma intrusiva, el sueño sigue mal y refiere que las ideas en general es porque siente que "no encaja", no habla con la gente y sentimiento de soledad."
 
             TEXTO A RESUMIR:
             {transcripcion}
@@ -943,3 +938,21 @@ def gdrive_up(local_file, final_name):
 #             messages=[{"role": "user", "content": f'{prompt}'}
 #                 ])
 #             return response.choices[0]['message']['content']
+
+
+
+# Secciones Adicionales (Incluir al Final de la Descripción Principal)  
+# Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+
+# 1. ANTECEDENTES PERSONALES PATOLÓGICOS:  
+#    - Historial de alergias, cirugías, fracturas, trauma craneoencefálico (con pérdida de conciencia), convulsiones, transfusiones, enfermedades crónicas (ej. asma, diabetes, trastornos tiroideos), medicamentos actuales (nombre, dosis, duración) y estado del esquema de vacunación.
+#    - PSIQUIÁTRICOS: Atenciones previas por parte de especialistas en salud mental (psicólogos y psiquiátras) incluyendo fechas de inicio, duración, síntomas que presentaban, diagnósticos dados, tratamientos y si hubo mejoría. También incluye si ha presentado hospitalizaciones en centros especializados en salud mental o adicciones así como si ha presentado conductas autolesivas (número de ocasiones, fechas, métodos). Incluye la información únicamente si se menciona en la transcripción. 
+# 2. PERINATALES:  
+#    - Curso del embarazo (normoevolutivo o con complicaciones como amenaza de aborto, preeclampsia, infecciones, etc.).  
+#    - Tipo de nacimiento (parto o cesárea, motivo si aplica), si fue semanas de gestación (si fue pretérmino, a término o postérmino), complicaciones al nacer, peso y talla, esfuerzo respiratorio, intervenciones neonatales, alta con la madre y si en las semanas siguientes al alta existió alguna complicación como infecciones, ictericia u otras.
+
+# 3. NEURODESARROLLO:  
+#    - Desempeño de hitos (sostén cefálico, sedestación, gateo, bipedestación, deambulación, lenguaje: desde palabras simples hasta conversación fluida, control de esfínteres), especificando la edad en meses cuando se mencione. Solo utilizar la información de la transcripción si no se menciona no la incluyas.
+
+# 4. DESARROLLO ESCOLAR:  
+#    - Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), edad de inicio por etapa, reportes escolares (tipo, existencia), desempeño académico (notas, materias reprobadas si se indican) y observaciones sobre el rendimiento o quejas actuales; incluir el grado actual
