@@ -504,13 +504,14 @@ Instrucciones Generales
 Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
 
 Objetivo Principal  
-Elaborar un informe que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
+Elaborar un informe preciso y conciso que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
 
 Requisitos del Formato de la Respuesta  
 - Idioma: Español México.  
 - Estilo:  
   - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).  
   - Redacción en tercera persona, concisa y precisa.
+  - Lenguaje técnico apropiado para documentación clínica
   - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.  
 - Extensión: La descripción principal debe tener entre 250 a 350 palabras según lo amerite el caso y sin incluir las secciones adicionales.
   - Evitar redundancias.
@@ -518,27 +519,27 @@ Requisitos del Formato de la Respuesta
 
 Contenido a Incluir en la Evolución del Padecimiento  
 1. Datos Iniciales y Contexto:  
-   - Género y grupo etario del paciente (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años).  
+   - Género (hombre o mujer) y grupo etario del paciente (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años).  
    - Contexto sociofamiliar (por ejemplo, presencia o ausencia de padres, custodia, albergue, etc.) y dinámica familiar (relaciones, integración, factores parentales relevantes, eventos traumáticos, uso excesivo de dispositivos electrónicos, etc.).  
 2. Descripción Clínica Detallada:  
    - Factores desencadenantes y exacerbantes.  
    - Cronología de síntomas y manifestaciones (afectivos, ansiosos, cognitivos, conductuales, patrón de sueño, alimentación, etc.).  
    - Evolución en severidad e intensidad de los síntomas a lo largo del tiempo.  
-   - Impacto en la funcionalidad diaria: desempeño académico, relaciones familiares, socialización, etc.  
+   - Impacto en la funcionalidad diaria: desempeño académico, relaciones familiares, interpersonales, socialización, etc.  
 3. Estado Actual:  
    - Síntomas presentes y la principal motivación para acudir a consulta.
 
 Sección Adicional (Incluir al Final de la Descripción Principal)  
 Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
 1. Impresión diagnóstica
-    - En base a los síntomas narrados establecer una hipotesis diagnóstica con sus especificadores si es que los hay así como los criterios diagnósticos acorde a DSM 5 o CIE 10.
+    - En base a los síntomas narrados esblece una hipotesis diagnóstica propia acorde a los criterios diagnósticos del DSM 5 TR o CIE 10, que incluya sus especificadores.
     - Puedes mencionar diagnósticos concurrentes o complementarios
     - 1 a 2 diagnósticos diferenciales
 2. Examen Mental
     - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
     - Incluye la descripción basadi en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
         epontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado),
-        presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años concreto), control de impulsos)                                              
+        presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)             
         Ejemplos de examen mental:
         - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
            volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen 
@@ -549,7 +550,9 @@ Usa exclusivamente la información extraída de la transcripción para desarroll
         - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
            afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
            o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
-                                              
+3. Interacción entre medicamentos
+    - Identifica los medicamentos que esta o estará tomando y en base a conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción                
+                                      
 Información a Omitir  
 - Todo dato que no esté relacionado con la evolución del padecimiento, salvo lo requerido en las secciones adicionales.  
 - Información personal irrelevante, sugerencias terapéuticas, planes de tratamiento, juicios de valor, diagnósticos no explícitamente mencionados en la transcripción, análisis del caso o resúmenes finales así como expresiones coloquiales salvo las cita textuales de los dichos por el paciente o su acompañante
@@ -596,12 +599,12 @@ Guías Adicionales
             
         else:
             response = model.generate_content(f'''
-            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
+            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
 
-            OBJETIVO: Redactar una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
+            OBJETIVO: Distingue la información que corresponde a la consulta previa y a la actual, para una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
 
             FORMATO REQUERIDO:
-            - Idioma español
+            - Idioma español México
             - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
             - Extensión de 150 a 200 palabras
             - Lenguaje técnico apropiado para documentación clínica
@@ -611,6 +614,7 @@ Guías Adicionales
             - Antecedentes relevantes del padecimiento y particularmente del estado y evolución desde la última consulta a la actual
             - Cronología detallada de síntomas y manifestaciones (cognitivos, de socialización, emocionales, ansiosos, afectivos o anímicos, del sueño, del apetito y adherencia al tratamiento)
             - Cambios en la severidad e intensidad de los síntomas a lo largo del tiempo
+            - Estado actual y evolución de sus relaciones interpersonales significativas y de su funcionalidad en ámbitos social, familiar, académico o laboral según corresponda
             - Factores desencadenantes o exacerbantes identificados por el paciente
             - Estado actual del paciente
             - Después de un salto de línea escribe un análisis donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
@@ -637,6 +641,27 @@ Guías Adicionales
 
             Ejemplo 4: “Acude paciente refiriéndo continuar con estabilidad de sus síntomas, es decir, con la disminución de la ansiedad y síntomas depresivos además de la casi ausencia de los pensamientos de culpa/minusvalía (los de muerte están ausentes); sin embargo refiere que algunos días, los menos, ha tenido algunas bajas en el estado de ánimo sin una causa identificada. Adecuada adherencia al tratamiento, patrón de sueño y alimenticio. También ha notado menos "fastidio" por estar haciendo su trabajo además de menor irritabilidad, mayor energía con mejor concentración y rendimiento en su empleo. En cuanto a la ansiedad casi han desaparecido las rumiaciones ansiógenas y cuando estas se presentan logra identificarlas y darles cauce. Continúa con actividad física a base de rutina dentro de casa con una frecuencia de 3 días por semana durante 40 minutos. Subjetivamente califica su estado de ánimo de un 8-9/10.”
 
+            Sección Adicional (Incluir al Final de la Descripción Principal)  
+            Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+
+            1. Examen Mental
+                - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+                - Incluye la descripción basado en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+                    espontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado), conetnido del pensamiento (preocupaciones, rumiaciones, ideas obsesivas, intrusivas, etc.)
+                    presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)                                              
+                    Ejemplos de examen mental:
+                    - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+                    volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen 
+                    control de impulsos.
+                    - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, ropa acorde a clima y situación, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+                    inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+                    juicio formal y buen control de impulsos.
+                    - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+                    afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+                    o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
+            2. Interacción entre medicamentos
+                - Identifica los medicamentos que esta o estará tomando y en base a tu conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción                
+                                              
             TEXTO A RESUMIR:
             {transcripcion}
         ''')
