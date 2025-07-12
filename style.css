@@ -8,7 +8,7 @@
     top: 0;
     left: 0;
     width: 100%;
-    background: rgba(81, 4, 170, 0.26);
+    background: rgba(82, 4, 170, 0.623);
     /* Removed backdrop-filter for performance; blur is expensive on mobile */
     padding: 1.25rem 2rem;
     z-index: 1000;

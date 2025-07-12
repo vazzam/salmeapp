@@ -532,7 +532,7 @@ Contenido a Incluir en la Evolución del Padecimiento
 Sección Adicional (Incluir al Final de la Descripción Principal)  
 Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
 1. Impresión diagnóstica
-    - En base a los síntomas narrados esblece una hipotesis diagnóstica propia acorde a los criterios diagnósticos del DSM 5 TR o CIE 10, que incluya sus especificadores.
+    - En base a los síntomas narrados y en base a tu conocimiento como experto en psiquiatría infantil genera tu propia e indepéndiente hipotesis diagnóstica propia acorde a los criterios diagnósticos del DSM 5 TR o CIE 10, que incluya sus especificadores.
     - Puedes mencionar diagnósticos concurrentes o complementarios
     - 1 a 2 diagnósticos diferenciales
 2. Examen Mental
