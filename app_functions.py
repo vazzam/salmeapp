@@ -320,7 +320,7 @@ html_ex = '''<!DOCTYPE html>
 
 
 def resumen_paciente(datos):
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado, 
                                         seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
                                         RESUMEN DE EXPEDIENTE CLÍNICO
@@ -376,7 +376,7 @@ def resumen_paciente(datos):
     return resumen, html_code
 
 def chat_expediente(pregunta, expediente):
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y responde la pregunta sobre el expediente clínico proporcionado, siguiendo estrictamente la estructura solicitada.
 
                                         FORMATO: 
@@ -444,7 +444,7 @@ def audio_recorder_transcriber(nota: str):
             return None
 
     def resumen_transcripcion(transcripcion, nota):
-        model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         if nota == "primera":
             response = model.generate_content(f'''
                 INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
