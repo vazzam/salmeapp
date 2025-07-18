@@ -893,7 +893,9 @@ Guías Adicionales
             TEXTO A RESUMIR:
             {transcripcion}
         '''}],)
-        return response.choices[0].message.content
+        response = response.choices[0].message.content
+        output_text = re.sub(r'<think>[\s\S]*?</think>', '', response).strip()
+        return output_text
     # Inicializar estado
     if "audio_data" not in st.session_state: 
         st.session_state["audio_data"] = None
