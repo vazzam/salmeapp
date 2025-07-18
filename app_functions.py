@@ -677,7 +677,7 @@ Guías Adicionales
         return response.text
 
     def resumen_transcripcion2(transcripcion, nota):
-        llm_model = 'moonshotai/Kimi-K2-Instruct'
+        llm_model = 'Qwen/Qwen3-32B'
         if nota == "primera":
             response = openai.chat.completions.create(model=llm_model, messages=[{"role": "user", "content":f'''
                 INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
