@@ -438,10 +438,15 @@ def audio_recorder_transcriber(nota: str):
             
             # st.write(response.text)
             if response.text:
-                summarized = resumen_transcripcion(response.text, nota)
-                summarized2 = resumen_transcripcion2(response.text, nota)
-                st.success("Transcripción completa exitosa")
-                return summarized + " VERSION 2: --------»» " + summarized2
+                try:
+                    summarized = resumen_transcripcion(response.text, nota)
+                    summarized2 = resumen_transcripcion2(response.text, nota)
+                    st.success("Transcripción completa exitosa")
+                    return summarized + " VERSION 2: --------»»              " + summarized2
+                except:
+                    summarized2 = resumen_transcripcion2(response.text, nota)
+                    st.success("Transcripción completa exitosa")
+                    return summarized2
             return None
         except Exception as e:
             st.error(f"Error al transcribir: {str(e)}")
@@ -672,9 +677,9 @@ Guías Adicionales
         return response.text
 
     def resumen_transcripcion2(transcripcion, nota):
-        # model = genai.GenerativeModel('gemini-2.5-flash')
+        llm_model = 'moonshotai/Kimi-K2-Instruct'
         if nota == "primera":
-            response = openai.chat.completions.create(model="Qwen/Qwen3-235B-A22B", messages=[{"role": "user", "content":f'''
+            response = openai.chat.completions.create(model=llm_model, messages=[{"role": "user", "content":f'''
                 INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
 
                 OBJETIVO: Redactar la evolución del padecimiento del paciente, desde su inicio hasta el estado actual, integrando únicamente la información clínica relevante extraída de las intervenciones del paciente durante la consulta.
@@ -726,7 +731,7 @@ Guías Adicionales
                         {transcripcion}
             '''}],)
         elif nota == 'primera_paido':
-            response = openai.chat.completions.create(model="Qwen/Qwen3-235B-A22B", messages=[{"role": "user", "content":f'''
+            response = openai.chat.completions.create(model=llm_model, messages=[{"role": "user", "content":f'''
 
     Instrucciones Generales  
     Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
@@ -826,7 +831,7 @@ Guías Adicionales
             '''}],)
             
         else:
-            response = openai.chat.completions.create(model="Qwen/Qwen3-235B-A22B", messages=[{"role": "user", "content":f'''
+            response = openai.chat.completions.create(model=llm_model, messages=[{"role": "user", "content":f'''
             INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
 
             OBJETIVO: Distingue la información que corresponde a la consulta previa y a la actual, para una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
