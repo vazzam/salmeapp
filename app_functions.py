@@ -14,11 +14,18 @@ import io
 import wave
 from pydub import AudioSegment
 from streamlit_mic_recorder import mic_recorder
-# openai.api_key = "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"
-genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+mongodb_uri = os.getenv("MONGODB_URI")
+gemini_api = os.getenv("GEMINI_API")
+deepinfra_api = os.getenv("DEEPINFRA_API")
+
+genai.configure(api_key=gemini_api)
 # RAND BLOOD PRESSURE VALUES
 openai = OpenAI(
-    api_key="8EQlNuXZiBBmZKRo7SxklJyjnWgsDbHm",
+    api_key=deepinfra_api,
     base_url="https://api.deepinfra.com/v1/openai",
 )
 def rand_ta():
@@ -52,7 +59,7 @@ def stored_data(name):
 
 # Configurar cliente OpenAI compatible con deepinfra
 client = OpenAI(
-    api_key="8EQlNuXZiBBmZKRo7SxklJyjnWgsDbHm",  # Reemplaza con tu clave real
+    api_key=deepinfra_api,  # Reemplaza con tu clave real
     base_url="https://api.deepinfra.com/v1/openai",
 )
 # def resumen_paciente(datos):
@@ -1139,16 +1146,16 @@ def last_note(consultas_previas, paciente, nota):
     return fechas_citas[-1], len(fechas_citas)
 
 
-def mongo_intial():
-    uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+def mongo_intial(mongodb_uri):
+    uri = mongodb_uri
     client = MongoClient(uri)
     db = client['expedinente_electronico'] #base de datos
     pacientes = db['pacientes'] #colección
     ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
     return client, pacientes
 
-def mongo_connect():
-    uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+def mongo_connect(mongodb_uri):
+    uri = mongodb_uri
     client = MongoClient(uri)
     db = client['expedinente_electronico'] #base de datos
     pacientes = db['pacientes'] #colección

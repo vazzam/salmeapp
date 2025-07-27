@@ -16,6 +16,11 @@ from pymongo import MongoClient
 import re
 from pathlib import Path
 from streamlit.components.v1 import html
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+mongodb_uri = os.getenv("MONGODB_URI")
 
 st.set_page_config(
     page_title=" Subsecuentes",
@@ -108,7 +113,7 @@ header_html = f"""
 st.markdown(header_html, unsafe_allow_html=True)
 
 
-uri = "mongodb+srv://jmvz_87:grmUXwQNW7o4hv2N@stl.hnzdf.mongodb.net/?retryWrites=true&w=majority"
+uri = mongodb_uri
 client = MongoClient(uri)
 db = client['expedinente_electronico'] #base de datos
 pacientes = db['pacientes'] #colección

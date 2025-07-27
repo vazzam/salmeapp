@@ -14,6 +14,12 @@ import random
 import app_functions as afx
 from streamlit.components.v1 import html
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+mongodb_uri = os.getenv("MONGODB_URI")
+
 
 st.set_page_config(
     page_title=" Historia Clínica",
@@ -1248,7 +1254,7 @@ if gen_pdf:
     response = s3.generate_presigned_url('get_object',\
         Params={'Bucket': 'salme','Key': f'salme/hc/{nombre_completo}.pdf'},\
                 ExpiresIn=240)
-    client, pacientes = afx.mongo_intial()
+    client, pacientes = afx.mongo_intial(mongodb_uri)
     pacientes.insert_one(paciente)
     client.close()
     progress_bar = st.progress(0)
