@@ -8,7 +8,6 @@ from pydrive.drive import GoogleDrive
 from openai import OpenAI
 import google.generativeai as genai
 import re
-import pyaudio
 import threading
 import io
 import wave
