@@ -12,6 +12,11 @@ from gtts import gTTS
 import requests
 import PyPDF2
 from io import BytesIO
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+gemini_api = os.getenv("GEMINI_API")
 
 
 st.set_page_config(
@@ -21,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 # Configurar la API key de Gemini (se recomienda usar Streamlit secrets para la clave)
-genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
+genai.configure(api_key=gemini_api)
 
 # Configurar el email para Entrez
 Entrez.email = "your.email@example.com"  # Reemplaza con tu email
