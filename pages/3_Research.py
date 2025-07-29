@@ -16,6 +16,10 @@ from PyPDF2 import PdfReader
 from gtts import gTTS
 import base64
 from metapub import PubMedFetcher, FindIt
+import os
+from dotenv import load_dotenv
+load_dotenv()
+gemini_api = os.getenv("GEMINI_API")
 # Configure logging
 
 # Configuración inicial de Streamlit
@@ -160,7 +164,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Configurar la API de Gemini
-genai.configure(api_key="AIzaSyCZdZpNxhDBGIVEQQkbVPNFVT8uNbF_mJY")
+genai.configure(api_key=gemini_api)
 
 # Configurar el email para Entrez
 Entrez.email = "your.email@example.com"  # Reemplaza con tu email
