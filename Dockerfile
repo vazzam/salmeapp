@@ -15,7 +15,8 @@ COPY requirements.txt .
 RUN echo "Build_ID=$(date)"
 
 # Esta línea ahora se ejecutará de nuevo sí o sí
-RUN pip install --no-cache-dir -r requirements.txt
+# Instala las dependencias Y LUEGO muestra la versión de streamlit en los logs
+RUN pip install --no-cache-dir -r requirements.txt && pip show streamlit
 # Copia el resto de los archivos
 COPY . .
 
