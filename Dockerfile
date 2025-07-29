@@ -9,10 +9,13 @@ ENV PYTHONUNBUFFERED=1
 # Crea directorio de trabajo
 WORKDIR /app
 
-# Copia e instala dependencias
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
+# --- AÑADE ESTA LÍNEA PARA ROMPER EL CACHÉ ---
+RUN echo "Build_ID=$(date)"
+
+# Esta línea ahora se ejecutará de nuevo sí o sí
+RUN pip install --no-cache-dir -r requirements.txt
 # Copia el resto de los archivos
 COPY . .
 
@@ -20,4 +23,4 @@ COPY . .
 EXPOSE 8501
 
 # Comando para ejecutar tu app Streamlit
-CMD ["streamlit", "run", "Inicio.py", "--server.port=8501", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--server.baseUrlPath="]
+CMD ["streamlit", "run", "Inicio.py", "--server.port=8501", "--server.headless=true", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--server.baseUrlPath="]
