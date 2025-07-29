@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 8501
 
 # Comando para ejecutar tu app Streamlit
-CMD ["streamlit", "run", "Inicio.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["streamlit", "run", "Inicio.py", "--server.port=8501", "--server.enableCORS=false", "--server.enableXsrfProtection=false", "--server.baseUrlPath="]
