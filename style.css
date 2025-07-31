@@ -803,7 +803,7 @@ header[data-testid="stHeader"] {
     box-shadow: none !important;
 
     /* --- ¡AJUSTA ESTOS VALORES PARA LA POSICIÓN PERFECTA! --- */
-    top: 5px;      /* Distancia desde arriba */
+    top: 150px;      /* Distancia desde arriba */
     right: 120px;  /* Distancia desde la derecha (a la izquierda de tus iconos) */
 
     /* === PASO DE DEPURACIÓN === */
