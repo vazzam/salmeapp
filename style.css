@@ -274,7 +274,7 @@ header {visibility: hidden;}*/
 /* Ajuste para hacer visible el header original de Streamlit */
 header[data-testid="stHeader"] {
     position: relative; /* Permite moverlo sin afectar a otros elementos */
-    top: 70px;          /* Lo empuja 70px hacia abajo desde su posición original */
+    top: 200px;          /* Lo empuja 70px hacia abajo desde su posición original */
     z-index: 900;       /* Asegura que esté debajo de tu header (que tiene z-index: 1000) */
 }
 /* Variables del tema */
