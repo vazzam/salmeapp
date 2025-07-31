@@ -84,11 +84,12 @@ pdf_template = './data/HC_SALME_python.pdf'
 renglon = '\n'
 date = datetime.now()
 date = date.strftime("%d/%m/%Y %H:%M")
+#header_html = # Reemplaza tu variable header_html con esta versión actualizada
 header_html = f"""
 <div class="app-header">
-        <div class="logo-container">
-            <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
-        </div>
+    <div class="logo-container">
+        <img src="data:image/png;base64,{logo_base64}" class="logo" alt="Logo">
+    </div>
     <div class="header-icon-container">
         <!-- Botón Home -->
         <a href="/" class="icon-button" target="_self">
@@ -108,9 +109,43 @@ header_html = f"""
                 <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
             </svg>
         </a>
+        
+        <!-- ======================================================= -->
+        <!-- ===== AÑADIR ESTE NUEVO BOTÓN PARA EL MENÚ AQUÍ ===== -->
+        <!-- ======================================================= -->
+        <button id="custom-menu-trigger" class="icon-button" title="Abrir menú">
+            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24">
+                <path d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2 2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+            </svg>
+        </button>
     </div>
 </div>
+
+<!-- ======================================================= -->
+<!-- ===== AÑADIR ESTE SCRIPT JUSTO DESPUÉS DEL HEADER ===== -->
+<!-- ======================================================= -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {{
+    const customMenuButton = document.getElementById('custom-menu-trigger');
+
+    if (customMenuButton) {{
+        customMenuButton.addEventListener('click', function() {{
+            // Busca el botón real del menú de Streamlit en el DOM principal
+            const streamlitMenuButton = window.parent.document.querySelector('button[title="View app menu"]');
+            
+            if (streamlitMenuButton) {{
+                // Si lo encuentra, simula un clic
+                streamlitMenuButton.click();
+            }} else {{
+                console.warn('No se pudo encontrar el botón del menú de Streamlit.');
+            }}
+        }});
+    }}
+}});
+</script>
 """
+
 st.markdown(header_html, unsafe_allow_html=True)
 if 'ta' not in st.session_state:
     st.session_state.ta = ''
