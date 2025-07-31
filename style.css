@@ -778,47 +778,49 @@ button[kind="secondaryFormSubmit"]:active {
         transition: none;
     }
 }
+/* --- CÓDIGO CONSOLIDADO Y ROBUSTO PARA REPOSICIONAR EL MENÚ --- */
 
-/* --- AJUSTES PARA REPOSICIONAR EL MENÚ DE 3 PUNTOS DE STREAMLIT --- */
-
-/* 1. Posicionar el contenedor del header de Streamlit */
+/* 1. Anulamos cualquier estilo que oculte el header de Streamlit y lo posicionamos */
 header[data-testid="stHeader"] {
-    /* Lo sacamos del flujo normal para poder moverlo libremente */
-    position: fixed;
+    /* FORZAMOS la visibilidad del contenedor */
+    display: block !important;
+    visibility: visible !important;
     
-    /* ¡CLAVE! Lo ponemos por encima de tu header personalizado (.app-header tiene z-index: 1000) */
-    z-index: 1001;
+    /* Lo posicionamos de forma fija en la pantalla */
+    position: fixed !important;
+    
+    /* ¡CLAVE! Un z-index muy alto para que esté por encima de todo */
+    z-index: 1002 !important;
 
-    /* Resetea el fondo y borde para que no interfiera visualmente */
+    /* Le quitamos cualquier fondo, borde o sombra que pueda tener */
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
 
     /* --- ¡AJUSTA ESTOS VALORES PARA LA POSICIÓN PERFECTA! --- */
-    /* Distancia desde arriba. Tu header tiene 50px de alto, prueba un valor que lo centre verticalmente. */
-    top: 10px;       
-    
-    /* Distancia desde la derecha. Esto moverá el menú a la izquierda de tus iconos. */
-    /* Empieza con un valor como 120px y ajústalo hasta que te guste. */
-    right: 120px;      
+    top: 5px;      /* Distancia desde arriba */
+    right: 120px;  /* Distancia desde la derecha (a la izquierda de tus iconos) */
+
+    /* === PASO DE DEPURACIÓN === */
+    /* Descomenta la siguiente línea para ver un cuadrado rojo donde está el menú. */
+    /* Si no ves el cuadrado rojo, el selector puede haber cambiado. */
+    /* background-color: rgba(255, 0, 0, 0.5) !important;  */
 }
 
-/* 2. (Opcional) Asegurarse de que el color del icono del menú coincida con los tuyos */
-/* Streamlit puede cambiar los selectores, pero este suele funcionar */
+/* 2. Nos aseguramos de que el botón DENTRO del header también sea visible */
+#MainMenu {
+    visibility: visible !important;
+}
+
+/* 3. (Opcional) Intentamos dar estilo al color del icono para que coincida */
 button[title="View app menu"] svg {
-    fill: var(--text-color) !important; /* Usa el mismo color que tus otros iconos */
+    fill: var(--text-color) !important;
 }
 
-button[title="View app menu"]:hover svg {
-    fill: white !important; /* Mismo color de hover que tus otros iconos */
-}
-
-
-/* 3. Ajuste para la vista en móviles */
+/* 4. Ajuste final para móviles */
 @media (max-width: 768px) {
     header[data-testid="stHeader"] {
-        /* Ajusta la posición para que se vea bien en pantallas pequeñas */
-        top: 15px; 
-        right: 85px; 
+        top: 15px !important;
+        right: 85px !important;
     }
 }
