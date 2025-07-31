@@ -70,19 +70,7 @@ st.markdown(f"""
         </div>
         
     </div>
-    <script>
-        window.addEventListener('scroll', function() {{
-            const header = document.querySelector('.app-header');
-            const app = document.querySelector('.stApp');
-            if (window.scrollY > 50) {{
-                header.classList.add('scrolled');
-                app.classList.add('scrolled');
-            }} else {{
-                header.classList.remove('scrolled');
-                app.classList.remove('scrolled');
-            }}
-        }});
-    </script>
+    
 """, unsafe_allow_html=True)
 st.markdown('<div class="title-container"><h1>Historia Clínica</h1>', unsafe_allow_html=True)
 
