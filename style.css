@@ -266,8 +266,8 @@ header[data-testid="stHeader"] {
     }
 }
 
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
+/*#MainMenu {visibility: hidden;}
+header {visibility: hidden;}*/
 
 /* Si se quiere ocultar el boton deploy */
 .stDeployButton {display: none;}
