@@ -807,20 +807,22 @@ header[data-testid="stHeader"] {
     /* background-color: rgba(255, 0, 0, 0.5) !important;  */
 }
 
-/* 2. Nos aseguramos de que el botón DENTRO del header también sea visible */
-#MainMenu {
-    visibility: visible !important;
+/* Estilo específico para el nuevo botón del menú */
+#custom-menu-trigger {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
 }
 
-/* 3. (Opcional) Intentamos dar estilo al color del icono para que coincida */
-button[title="View app menu"] svg {
-    fill: var(--text-color) !important;
+/* Estilo para el SVG dentro del nuevo botón (y los otros) */
+.icon-button svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    fill: var(--text-color); /* Usa el color de texto definido en tus variables */
+    transition: fill 0.2s ease;
 }
 
-/* 4. Ajuste final para móviles */
-@media (max-width: 768px) {
-    header[data-testid="stHeader"] {
-        top: 15px !important;
-        right: 85px !important;
-    }
-}
+.icon-button:hover svg {
+    fill: white; /* O el color que prefieras para el hover */
+}"
