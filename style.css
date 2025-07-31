@@ -176,9 +176,9 @@
 }
 
 /* Ocultar header por defecto de Streamlit */
-header[data-testid="stHeader"] {
+/*header[data-testid="stHeader"] {
     display: none;
-}
+}*/
 
 /* Media query para móviles */
 @media (max-width: 768px) {
