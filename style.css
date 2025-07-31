@@ -778,3 +778,47 @@ button[kind="secondaryFormSubmit"]:active {
         transition: none;
     }
 }
+
+/* --- AJUSTES PARA REPOSICIONAR EL MENÚ DE 3 PUNTOS DE STREAMLIT --- */
+
+/* 1. Posicionar el contenedor del header de Streamlit */
+header[data-testid="stHeader"] {
+    /* Lo sacamos del flujo normal para poder moverlo libremente */
+    position: fixed;
+    
+    /* ¡CLAVE! Lo ponemos por encima de tu header personalizado (.app-header tiene z-index: 1000) */
+    z-index: 1001;
+
+    /* Resetea el fondo y borde para que no interfiera visualmente */
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+
+    /* --- ¡AJUSTA ESTOS VALORES PARA LA POSICIÓN PERFECTA! --- */
+    /* Distancia desde arriba. Tu header tiene 50px de alto, prueba un valor que lo centre verticalmente. */
+    top: 10px;       
+    
+    /* Distancia desde la derecha. Esto moverá el menú a la izquierda de tus iconos. */
+    /* Empieza con un valor como 120px y ajústalo hasta que te guste. */
+    right: 120px;      
+}
+
+/* 2. (Opcional) Asegurarse de que el color del icono del menú coincida con los tuyos */
+/* Streamlit puede cambiar los selectores, pero este suele funcionar */
+button[title="View app menu"] svg {
+    fill: var(--text-color) !important; /* Usa el mismo color que tus otros iconos */
+}
+
+button[title="View app menu"]:hover svg {
+    fill: white !important; /* Mismo color de hover que tus otros iconos */
+}
+
+
+/* 3. Ajuste para la vista en móviles */
+@media (max-width: 768px) {
+    header[data-testid="stHeader"] {
+        /* Ajusta la posición para que se vea bien en pantallas pequeñas */
+        top: 15px; 
+        right: 85px; 
+    }
+}
