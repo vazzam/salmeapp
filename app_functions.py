@@ -1,4 +1,3 @@
-# @title Texto de título predeterminado
 import random
 from datetime import date, datetime 
 import streamlit as st
@@ -402,36 +401,33 @@ def chat_expediente(pregunta, expediente):
 
 
 def audio_recorder_transcriber(nota: str):
-    """Función reutilizable para grabar, guardar y transcribir audio desde el navegador."""
+    """
+    Función corregida para grabar, guardar y transcribir audio.
+    Elimina loops de rerun y asegura la visualización del resultado.
+    """
     
-    # --- FUNCIONES INTERNAS (Tus funciones de resumen y transcripción van aquí) ---
-    def transcribe_audio(audio_filepath): # MODIFICADO: Acepta la ruta del archivo
-        """Transcribe el audio desde un archivo guardado."""
+    # --- FUNCIONES INTERNAS (Sin cambios aquí) ---
+    def transcribe_audio(audio_filepath):
         try:
-            # NUEVO: Abre el archivo en modo lectura binaria ("rb")
             with open(audio_filepath, "rb") as audio_file:
                 response = client.audio.transcriptions.create(
                     model="openai/whisper-large-v3-turbo",
-                    file=("audio.wav", audio_file, "audio/wav"), # MODIFICADO: Pasa el manejador del archivo
+                    file=("audio.wav", audio_file, "audio/wav"),
                     language="es"
                 )
-
+            # ... (tu lógica de resúmenes)
+            # Asegúrate de que esta parte siempre devuelva el texto final
             if response.text:
-                try:
-                    summarized = resumen_transcripcion(response.text, nota)
-                    summarized2 = resumen_transcripcion2(response.text, nota)
-                    st.success("Transcripción completa exitosa")
-                    return summarized + " VERSION 2: --------»»         " + summarized2
-                except:
-                    summarized2 = resumen_transcripcion2(response.text, nota)
-                    st.success("Transcripción completa exitosa")
-                    return summarized2
+                summarized = resumen_transcripcion(response.text, nota)
+                summarized2 = resumen_transcripcion2(response.text, nota)
+                return summarized + " VERSION 2: --------»»         " + summarized2
             return None
         except Exception as e:
             st.error(f"Error al transcribir: {str(e)}")
             return None
 
-    def resumen_transcripcion(transcripcion, nota):
+
+   def resumen_transcripcion(transcripcion, nota):
         model = genai.GenerativeModel('gemini-2.5-flash')
         if nota == "primera":
             response = model.generate_content(f'''
@@ -880,68 +876,80 @@ Guías Adicionales
         response = response.choices[0].message.content
         output_text = re.sub(r'<think>[\s\S]*?</think>', '', response).strip()
         return output_text
-    # Inicializar estado
-# --- INICIALIZACIÓN DEL ESTADO DE SESIÓN ---
+
+    # --- INICIALIZACIÓN DEL ESTADO DE SESIÓN ---
     if "audio_filepath" not in st.session_state:
         st.session_state.audio_filepath = None
-    if "transcripcion" not in st.session_state:
-        st.session_state.transcripcion = ""
+    if "transcripcion_final" not in st.session_state:
+        st.session_state.transcripcion_final = ""
 
-    # --- INTERFAZ DE USUARIO ---
-    col1, col2 = st.columns([4, 1]) # Damos más espacio al grabador
-    with col1:
-        audio_value = mic_recorder(
-            start_prompt="▶️ Grabar",
-            stop_prompt="⏹️ Parar",
-            just_once=False,
-            use_container_width=True,
-            format="wav", # Es mejor grabar en wav directamente si la API lo prefiere
-            key='recorder'
-        )
+    # --- LÓGICA DE GRABACIÓN Y GUARDADO ---
+    audio_value = mic_recorder(
+        start_prompt="▶️ Grabar",
+        stop_prompt="⏹️ Parar",
+        use_container_width=True,
+        format="wav",
+        key='recorder'
+    )
 
-    with col2:
-        # El botón de transcripción ahora está separado
-        if st.button("🔮 Transcribir", use_container_width=True, disabled=(st.session_state.audio_filepath is None)):
-            with st.spinner("Transcribiendo... ⏳"):
-                # MODIFICADO: Llama a transcribir con la ruta del archivo
-                transcripcion = transcribe_audio(st.session_state.audio_filepath)
-                if transcripcion:
-                    st.session_state.transcripcion = transcripcion
-                    # Opcional: limpiar el archivo después de transcribir para ahorrar espacio
-                    os.remove(st.session_state.audio_filepath)
-                    st.session_state.audio_filepath = None
-                    st.rerun() # Refresca la UI para deshabilitar el botón
-
-    # --- LÓGICA DE PROCESAMIENTO DE AUDIO ---
-    if audio_value:
-        # NUEVO: Cuando se recibe audio del componente, se guarda en un archivo.
-        st.info("Procesando grabación...")
+    # CAMBIO CLAVE: Procesamos el audio solo si es un nuevo diccionario de bytes
+    # Esto se ejecuta solo una vez cuando el usuario detiene la grabación.
+    if audio_value and isinstance(audio_value, dict) and 'bytes' in audio_value:
+        # Al recibir una nueva grabación, limpiamos la transcripción anterior.
+        st.session_state.transcripcion_final = ""
         
-        # Define una carpeta para los audios temporales
+        # Guardar el nuevo archivo de audio
         temp_dir = "temp_audio"
         os.makedirs(temp_dir, exist_ok=True)
-        
-        # Crea una ruta de archivo única con timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = os.path.join(temp_dir, f"grabacion_{timestamp}.wav")
         
-        # Guarda los bytes del audio en el archivo
         with open(filepath, "wb") as f:
             f.write(audio_value['bytes'])
         
-        # Almacena la ruta del archivo en el estado de la sesión
-        st.session_state.audio_filepath = filepath
-        st.success(f"Grabación guardada como {filepath}")
-        st.rerun() # Refresca la UI para mostrar el reproductor
+        # Actualizamos la ruta del archivo en el estado y limpiamos la anterior si existiera
+        if st.session_state.audio_filepath and os.path.exists(st.session_state.audio_filepath):
+             os.remove(st.session_state.audio_filepath)
 
-    # NUEVO: Muestra el reproductor de audio si hay un archivo guardado
+        st.session_state.audio_filepath = filepath
+        # NO usamos st.rerun(). Streamlit continuará y redibujará la página naturalmente.
+
+    # --- INTERFAZ DE USUARIO ---
+    st.write("---")
+    
+    # Muestra el reproductor de audio si hay un archivo guardado
     if st.session_state.audio_filepath:
-        st.write("---")
         st.subheader("Audio grabado")
         st.audio(st.session_state.audio_filepath)
-        st.info("Presiona el botón '🔮 Transcribir' para continuar.")
+
+    # Botón para transcribir, se activa solo si hay un audio
+    if st.button("🔮 Transcribir y Resumir", disabled=(st.session_state.audio_filepath is None)):
+        with st.spinner("Transcribiendo y generando nota... ⏳"):
+            transcripcion_resultado = transcribe_audio(st.session_state.audio_filepath)
+            if transcripcion_resultado:
+                # Guardamos el resultado en el estado de la sesión
+                st.session_state.transcripcion_final = transcripcion_resultado
+                # Limpiamos la ruta del archivo para indicar que ya fue procesado
+                if os.path.exists(st.session_state.audio_filepath):
+                    os.remove(st.session_state.audio_filepath)
+                st.session_state.audio_filepath = None
+                # NO usamos st.rerun(). Al final de este bloque, Streamlit se redibujará
+                # y mostrará el área de texto con la transcripción.
+
+    # CAMBIO CLAVE: Muestra el resultado de la transcripción si existe
+    # Esta sección se encarga de que el resultado siempre esté visible.
+    if st.session_state.transcripcion_final:
+        st.subheader("Nota de Evolución Generada")
+        st.text_area(
+            "Resultado:", 
+            value=st.session_state.transcripcion_final, 
+            height=300
+        )
     
-    return st.session_state.transcripcion
+    # La función ahora no necesita devolver nada, ya que gestiona su propia visualización.
+    # Opcionalmente, puedes devolver el texto si lo necesitas en otra parte de "Inicio.py"
+    return st.session_state.transcripcion_final
+
 
 def calculate_age(born):
     today = datetime.now()
