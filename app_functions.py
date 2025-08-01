@@ -427,7 +427,7 @@ def audio_recorder_transcriber(nota: str):
             return None
 
 
-   def resumen_transcripcion(transcripcion, nota):
+    def resumen_transcripcion(transcripcion, nota):
         model = genai.GenerativeModel('gemini-2.5-flash')
         if nota == "primera":
             response = model.generate_content(f'''
