@@ -895,24 +895,25 @@ Guías Adicionales
     # CAMBIO CLAVE: Procesamos el audio solo si es un nuevo diccionario de bytes
     # Esto se ejecuta solo una vez cuando el usuario detiene la grabación.
     if audio_value and isinstance(audio_value, dict) and 'bytes' in audio_value:
-        # Al recibir una nueva grabación, limpiamos la transcripción anterior.
-        st.session_state.transcripcion_final = ""
-        
-        # Guardar el nuevo archivo de audio
-        temp_dir = "temp_audio"
-        os.makedirs(temp_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filepath = os.path.join(temp_dir, f"grabacion_{timestamp}.wav")
-        
-        with open(filepath, "wb") as f:
-            f.write(audio_value['bytes'])
-        
-        # Actualizamos la ruta del archivo en el estado y limpiamos la anterior si existiera
-        if st.session_state.audio_filepath and os.path.exists(st.session_state.audio_filepath):
-             os.remove(st.session_state.audio_filepath)
+        # NUEVO: Usamos st.spinner para mostrar un indicador mientras se guarda el archivo.
+        with st.spinner("💾 Guardando grabación en el servidor... por favor espera."):
+            st.session_state.transcripcion_final = ""
+            
+            temp_dir = "temp_audio"
+            os.makedirs(temp_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filepath = os.path.join(temp_dir, f"grabacion_{timestamp}.wav")
+            
+            with open(filepath, "wb") as f:
+                f.write(audio_value['bytes'])
+            
+            if st.session_state.audio_filepath and os.path.exists(st.session_state.audio_filepath):
+                 os.remove(st.session_state.audio_filepath)
 
-        st.session_state.audio_filepath = filepath
-        # NO usamos st.rerun(). Streamlit continuará y redibujará la página naturalmente.
+            st.session_state.audio_filepath = filepath
+        
+        # NUEVO: Mostramos un mensaje de éxito cuando el bloque del spinner termina.
+        st.success("✔️ ¡Grabación guardada! Ya puedes transcribirla.")
 
     # --- INTERFAZ DE USUARIO ---
     st.write("---")
