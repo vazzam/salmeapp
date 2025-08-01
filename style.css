@@ -7,7 +7,7 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 90%;
+    width: 100%;
     background: rgba(82, 4, 170, 0.623);
     /* Removed backdrop-filter for performance; blur is expensive on mobile */
     padding: 1.25rem 2rem;
@@ -176,9 +176,9 @@
 }
 
 /* Ocultar header por defecto de Streamlit */
-/*header[data-testid="stHeader"] {
+header[data-testid="stHeader"] {
     display: none;
-}*/
+}
 
 /* Media query para móviles */
 @media (max-width: 768px) {
@@ -271,7 +271,7 @@ header {visibility: hidden;}*/
 
 /* Si se quiere ocultar el boton deploy */
 .stDeployButton {display: none;}
-/* Ajuste para hacer visible el header original de Streamlit */
+
 /* Variables del tema */
 :root {
     /* Colores principales */
@@ -777,32 +777,4 @@ button[kind="secondaryFormSubmit"]:active {
         box-shadow: none;
         transition: none;
     }
-}
-/* --- CÓDIGO CONSOLIDADO Y ROBUSTO PARA REPOSICIONAR EL MENÚ --- */
-
-/* 1. Anulamos cualquier estilo que oculte el header de Streamlit y lo posicionamos */
-header[data-testid="stHeader"] {
-    /* FORZAMOS la visibilidad del contenedor */
-    display: block !important;
-    visibility: visible !important;
-    
-    /* Lo posicionamos de forma fija en la pantalla */
-    position: fixed !important;
-    
-    /* ¡CLAVE! Un z-index muy alto para que esté por encima de todo */
-    z-index: 1002 !important;
-
-    /* Le quitamos cualquier fondo, borde o sombra que pueda tener */
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-
-    /* --- ¡AJUSTA ESTOS VALORES PARA LA POSICIÓN PERFECTA! --- */
-    top: 150px;      /* Distancia desde arriba */
-    right: 120px;  /* Distancia desde la derecha (a la izquierda de tus iconos) */
-
-    /* === PASO DE DEPURACIÓN === */
-    /* Descomenta la siguiente línea para ver un cuadrado rojo donde está el menú. */
-    /* Si no ves el cuadrado rojo, el selector puede haber cambiado. */
-    /* background-color: rgba(255, 0, 0, 0.5) !important;  */
 }
