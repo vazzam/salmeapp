@@ -1210,4 +1210,3 @@ def gdrive_up(local_file, final_name):
 
 # 4. DESARROLLO ESCOLAR:  
 #    - Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), edad de inicio por etapa, reportes escolares (tipo, existencia), desempeño académico (notas, materias reprobadas si se indican) y observaciones sobre el rendimiento o quejas actuales; incluir el grado actual
-if "audio"
