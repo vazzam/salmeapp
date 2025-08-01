@@ -1,3 +1,4 @@
+# @title Texto de título predeterminado
 import random
 from datetime import date, datetime 
 import streamlit as st
@@ -401,54 +402,26 @@ def chat_expediente(pregunta, expediente):
 
 
 def audio_recorder_transcriber(nota: str):
-    """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
+    """Función reutilizable para grabar, guardar y transcribir audio desde el navegador."""
     
-    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):  # 10 minutos por segmento
-        """Divide el audio en fragmentos menores."""
+    # --- FUNCIONES INTERNAS (Tus funciones de resumen y transcripción van aquí) ---
+    def transcribe_audio(audio_filepath): # MODIFICADO: Acepta la ruta del archivo
+        """Transcribe el audio desde un archivo guardado."""
         try:
-            audio = AudioSegment.from_wav(audio_data)
-            duration_ms = len(audio)
-            segments = []
-            for start_ms in range(0, duration_ms, segment_duration_ms):
-                end_ms = min(start_ms + segment_duration_ms, duration_ms)
-                segment = audio[start_ms:end_ms]
-                segment_io = io.BytesIO()
-                segment.export(segment_io, format="webm")  # Mantener WAV para simplicidad
-                segment_io.seek(0)
-                segments.append(segment_io)
-            return segments
-        except Exception as e:
-            st.error(f"Error al segmentar el audio: {str(e)}")
-            return None
+            # NUEVO: Abre el archivo en modo lectura binaria ("rb")
+            with open(audio_filepath, "rb") as audio_file:
+                response = client.audio.transcriptions.create(
+                    model="openai/whisper-large-v3-turbo",
+                    file=("audio.wav", audio_file, "audio/wav"), # MODIFICADO: Pasa el manejador del archivo
+                    language="es"
+                )
 
-    def transcribe_audio(audio_data):
-        """Transcribe el audio segmentado."""
-        try:
-            # segments = split_audio(audio_data)
-            # if not segments:
-            #     return None
-            
-            # full_transcription = ""
-            # for i, segment in enumerate(segments):
-            #     st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
-            #     segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
-            #     if segment_size_mb > 25:
-            #         st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
-            #         continue
-                
-            response = client.audio.transcriptions.create(
-                model="openai/whisper-large-v3-turbo",
-                file=("audio.wav", audio_data, "audio/wav"),
-                language="es"
-            )
-            
-            # st.write(response.text)
             if response.text:
                 try:
                     summarized = resumen_transcripcion(response.text, nota)
                     summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
-                    return summarized + " VERSION 2: --------»»              " + summarized2
+                    return summarized + " VERSION 2: --------»»         " + summarized2
                 except:
                     summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
@@ -908,50 +881,67 @@ Guías Adicionales
         output_text = re.sub(r'<think>[\s\S]*?</think>', '', response).strip()
         return output_text
     # Inicializar estado
-    if "audio_data" not in st.session_state: 
-        st.session_state["audio_data"] = None
+# --- INICIALIZACIÓN DEL ESTADO DE SESIÓN ---
+    if "audio_filepath" not in st.session_state:
+        st.session_state.audio_filepath = None
     if "transcripcion" not in st.session_state:
-        st.session_state["transcripcion"] = ""
-    if "is_recording" not in st.session_state:
-        st.session_state["is_recording"] = False
+        st.session_state.transcripcion = ""
 
-    # Interfaz
-    col1, col2 = st.columns(2)
+    # --- INTERFAZ DE USUARIO ---
+    col1, col2 = st.columns([4, 1]) # Damos más espacio al grabador
     with col1:
-        st.text('')
-        audio_value =  mic_recorder(
-        start_prompt="💬",
-        stop_prompt="🟥",
-        just_once=False,
-        use_container_width=True,
-        format="webm",
-        callback=None,
-        args=(),
-        kwargs={},
-        key=None
-    )
-        if audio_value:
-            st.audio(audio_value['bytes'])
-        if audio_value and not st.session_state["is_recording"]:
-            st.session_state["audio_data"] = audio_value['bytes']
-            st.session_state["is_recording"] = True
-            # st.success("Grabación iniciada")
+        audio_value = mic_recorder(
+            start_prompt="▶️ Grabar",
+            stop_prompt="⏹️ Parar",
+            just_once=False,
+            use_container_width=True,
+            format="wav", # Es mejor grabar en wav directamente si la API lo prefiere
+            key='recorder'
+        )
 
     with col2:
-        if st.button("", use_container_width=True, icon='🔮'): #Transcribir...
-            if st.session_state["audio_data"]:
-                st.session_state["is_recording"] = False
-                # st.success("Grabación detenida")
-                with st.spinner(""): #Segmentando y transcribiendo
-                    transcripcion = transcribe_audio(st.session_state["audio_data"])
-                    if transcripcion:
-                        st.session_state["transcripcion"] = transcripcion
-                        st.session_state["audio_data"] = None
+        # El botón de transcripción ahora está separado
+        if st.button("🔮 Transcribir", use_container_width=True, disabled=(st.session_state.audio_filepath is None)):
+            with st.spinner("Transcribiendo... ⏳"):
+                # MODIFICADO: Llama a transcribir con la ruta del archivo
+                transcripcion = transcribe_audio(st.session_state.audio_filepath)
+                if transcripcion:
+                    st.session_state.transcripcion = transcripcion
+                    # Opcional: limpiar el archivo después de transcribir para ahorrar espacio
+                    os.remove(st.session_state.audio_filepath)
+                    st.session_state.audio_filepath = None
+                    st.rerun() # Refresca la UI para deshabilitar el botón
 
-    if st.session_state["is_recording"]:
-        st.write("Tomando nota...")
+    # --- LÓGICA DE PROCESAMIENTO DE AUDIO ---
+    if audio_value:
+        # NUEVO: Cuando se recibe audio del componente, se guarda en un archivo.
+        st.info("Procesando grabación...")
+        
+        # Define una carpeta para los audios temporales
+        temp_dir = "temp_audio"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Crea una ruta de archivo única con timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filepath = os.path.join(temp_dir, f"grabacion_{timestamp}.wav")
+        
+        # Guarda los bytes del audio en el archivo
+        with open(filepath, "wb") as f:
+            f.write(audio_value['bytes'])
+        
+        # Almacena la ruta del archivo en el estado de la sesión
+        st.session_state.audio_filepath = filepath
+        st.success(f"Grabación guardada como {filepath}")
+        st.rerun() # Refresca la UI para mostrar el reproductor
 
-    return st.session_state["transcripcion"]
+    # NUEVO: Muestra el reproductor de audio si hay un archivo guardado
+    if st.session_state.audio_filepath:
+        st.write("---")
+        st.subheader("Audio grabado")
+        st.audio(st.session_state.audio_filepath)
+        st.info("Presiona el botón '🔮 Transcribir' para continuar.")
+    
+    return st.session_state.transcripcion
 
 def calculate_age(born):
     today = datetime.now()
@@ -1220,3 +1210,4 @@ def gdrive_up(local_file, final_name):
 
 # 4. DESARROLLO ESCOLAR:  
 #    - Niveles cursados (guardería, preescolar, primaria, secundaria, preparatoria), edad de inicio por etapa, reportes escolares (tipo, existencia), desempeño académico (notas, materias reprobadas si se indican) y observaciones sobre el rendimiento o quejas actuales; incluir el grado actual
+if "audio"
