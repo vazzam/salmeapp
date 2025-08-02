@@ -996,7 +996,7 @@ Guías Adicionales
         stop_prompt="⏹️ Parar",
         use_container_width=True,
         format="wav",
-        key='recorder'
+        key='recorder1'
     )
 
     # CAMBIO CLAVE: Procesamos el audio solo si es un nuevo diccionario de bytes
