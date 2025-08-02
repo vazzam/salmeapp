@@ -406,6 +406,8 @@ def manejar_grabaciones_pendientes(nota_tipo: str = "subsecuente"):
     """
     Escanea, muestra y gestiona los archivos de audio pendientes de transcribir.
     """
+    if "transcripcion_final" not in st.session_state:
+        st.session_state.transcripcion_final = ""
     st.subheader("Paso 2: Transcribe tus grabaciones")
     st.write("Aquí puedes procesar las grabaciones guardadas o eliminar las que no necesites.")
 
