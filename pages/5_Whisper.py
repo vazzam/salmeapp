@@ -71,7 +71,13 @@ with col_fecha:
     fecha_actual = datetime.now().strftime("%d/%m/%Y %H:%M")
     st.info(f"📅 Fecha y hora: {fecha_actual}")
 
+afx.audio_recorder_ui()
 
+st.divider() # Un separador visual
+
+# 2. Llama a la interfaz que gestiona los archivos pendientes
+# Puedes pasar el tipo de nota que necesites, por ejemplo "primera" o "subsecuente"
+afx.manejar_grabaciones_pendientes(nota_tipo="subsecuente") 
 st.markdown("---")
 
 # # Llamar a la función de grabación con el tipo de nota seleccionado
