@@ -1,3 +1,4 @@
+
 import random
 from datetime import date, datetime 
 import streamlit as st
@@ -65,7 +66,7 @@ client = OpenAI(
 #     model = genai.GenerativeModel('gemini-2.0-flash')
 #     response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado, siguiendo estrictamente la estructura solicitada.
 
-#                                         FORMATO: 
+#                                         FORMATO:
 #                                         - Presenta la información en una tabla con las columnas: Fecha, Evolución y síntomas, Hallazgos clínicos, Análisis médico y Tratamiento.
 #                                         - Utiliza terminología médica apropiada manteniendo un tono profesional.
 #                                         - Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
@@ -399,57 +400,71 @@ def chat_expediente(pregunta, expediente):
     respuesta = response.text
     return respuesta
 
-
 def audio_recorder_transcriber(nota: str):
-    """Función reutilizable para grabar, segmentar y transcribir audio desde el navegador."""
-    
-    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):  # 10 minutos por segmento
-        """Divide el audio en fragmentos menores."""
-        try:
-            audio = AudioSegment.from_wav(audio_data)
-            duration_ms = len(audio)
-            segments = []
-            for start_ms in range(0, duration_ms, segment_duration_ms):
-                end_ms = min(start_ms + segment_duration_ms, duration_ms)
-                segment = audio[start_ms:end_ms]
-                segment_io = io.BytesIO()
-                segment.export(segment_io, format="webm")  # Mantener WAV para simplicidad
-                segment_io.seek(0)
-                segments.append(segment_io)
-            return segments
-        except Exception as e:
-            st.error(f"Error al segmentar el audio: {str(e)}")
-            return None
+    """Grabar, guardar inmediatamente en servidor y transcribir audio."""
 
-    def transcribe_audio(audio_data):
-        """Transcribe el audio segmentado."""
+    # ========= Utilidades de almacenamiento =========
+    AUDIO_DIR = "recordings"
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+
+    def unique_audio_name(prefix="rec"):
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        return f"{prefix}_{ts}.webm"  # el componente está en format="webm"
+
+    def save_bytes_to_file(b: bytes, path: str):
+        with open(path, "wb") as f:
+            f.write(b)
+        return path
+
+    # ========= Estado =========
+    if "audio_file_path" not in st.session_state:
+        st.session_state["audio_file_path"] = None  # ruta en servidor
+    if "transcripcion" not in st.session_state:
+        st.session_state["transcripcion"] = ""
+    if "is_recording" not in st.session_state:
+        st.session_state["is_recording"] = False
+
+    # ========= Helpers de transcripción (adaptados a archivo) =========
+    def transcribe_audio_from_file(file_path: str):
+        """Transcribe un archivo de audio en disco."""
         try:
-            # segments = split_audio(audio_data)
-            # if not segments:
-            #     return None
-            
-            # full_transcription = ""
-            # for i, segment in enumerate(segments):
-            #     st.write(f"Procesando segmento {i + 1} de {len(segments)}...")
-            #     segment_size_mb = len(segment.getvalue()) / (1024 * 1024)
-            #     if segment_size_mb > 25:
-            #         st.warning(f"El segmento {i + 1} ({segment_size_mb:.2f} MB) excede el límite de 25 MB. Ajusta la duración.")
-            #         continue
-                
+            # Si tu ASR requiere WAV, conviértelo aquí:
+            # Convertimos webm->wav en memoria antes de enviar a Whisper si es necesario
+            wav_bytes = None
+            if file_path.lower().endswith(".webm"):
+                try:
+                    audio_seg = AudioSegment.from_file(file_path, format="webm")
+                    buf = io.BytesIO()
+                    audio_seg.export(buf, format="wav")
+                    buf.seek(0)
+                    wav_bytes = buf.read()
+                except Exception as ce:
+                    st.error(f"Error al convertir a WAV: {ce}")
+                    return None
+
+            # Si tu endpoint acepta webm directamente, puedes enviar el archivo tal cual.
+            # Deepinfra Whisper suele aceptar "audio/wav" de forma segura:
+            file_tuple = ("audio.wav", io.BytesIO(wav_bytes), "audio/wav") if wav_bytes else (
+                os.path.basename(file_path), open(file_path, "rb"), "audio/webm"
+            )
+
             response = client.audio.transcriptions.create(
                 model="openai/whisper-large-v3-turbo",
-                file=("audio.wav", audio_data, "audio/wav"),
+                file=file_tuple,
                 language="es"
             )
-            
-            # st.write(response.text)
+
+            # Cerrar archivo si fue abierto como file
+            if isinstance(file_tuple[1], io.IOBase):
+                file_tuple[1].close()
+
             if response.text:
                 try:
                     summarized = resumen_transcripcion(response.text, nota)
                     summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
                     return summarized + " VERSION 2: --------»»              " + summarized2
-                except:
+                except Exception:
                     summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
                     return summarized2
@@ -457,6 +472,7 @@ def audio_recorder_transcriber(nota: str):
         except Exception as e:
             st.error(f"Error al transcribir: {str(e)}")
             return None
+
 
     def resumen_transcripcion(transcripcion, nota):
         model = genai.GenerativeModel('gemini-2.5-flash')
@@ -582,10 +598,10 @@ Guías Adicionales
             IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
 
             EJEMPLO NÚMERO 1:
-            "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
+            "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
 
             EJEMPLO NÚMERO 2:
-            "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
+            "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
 
             EJEMPLO NÚMERO 3:
             "Menor identificado desde la primaria con toda la sintomatología de hiperactividad, inatención, impulsividad, disperso, inatento, no trabajar, cuadernos y libros maltratados, mochila desorganizada, reportes constantes, en casa dificil para hacer tareas, no se le dio la atención y si se le generaban multiples regaños y sanciones, un hijo menor con diferencia con su hermana de 15 años, padres muy incompatibles por lo que vivió en medio muy disfuncional, el hermano mayor de 32a con tratamiento en salme, por lo que también es violento, ingresa a secundaria y aunado a la adolescencia totalmente disfuncional, no trabajar, no hacer tareas, distraído, fuera del salón y debuta en el consumo de multiples sustancias, ingresa a preparatoria y definitivamente abandona por el consumo principalmente de cocaína, asi pues que no estudia. Acude a psicología en varias ocasiones y a psiquiatría, le dijeron que tenía depresión y ansiedad y le dieron sertralina 50mg-d. Hace 5 meses vive con el padre porque pelea mucho con la madre, pero igual con el padre, miente de todo, exagera todo, le aumenta a todo, coamete hurtosmenores en la tienda de la madre como golosinas o algun billete de 20 pesos, ayer se disgustaron porque ya desconfían mucho de él y se tardó en un mandado y se pelearon, y se puso alterado, golpeando paredes, diciendo que quería morirse, el señala que siente una gran necesidad de consumir sustancias pero que sabe que no puede, se siente desesperado por salir a consumir asi que ayer consumió thc y clonazepam 1.5mg, y al no consumir siente que ya no existe nada que para que está. Acuden a urgencias y les dicen que se esperen a la cita de psiquiatria infantil."
@@ -806,10 +822,10 @@ Guías Adicionales
                 IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
 
                 EJEMPLO NÚMERO 1:
-                "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
+                "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
 
                 EJEMPLO NÚMERO 2:
-                "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
+                "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
 
                 EJEMPLO NÚMERO 3:
                 "Menor identificado desde la primaria con toda la sintomatología de hiperactividad, inatención, impulsividad, disperso, inatento, no trabajar, cuadernos y libros maltratados, mochila desorganizada, reportes constantes, en casa dificil para hacer tareas, no se le dio la atención y si se le generaban multiples regaños y sanciones, un hijo menor con diferencia con su hermana de 15 años, padres muy incompatibles por lo que vivió en medio muy disfuncional, el hermano mayor de 32a con tratamiento en salme, por lo que también es violento, ingresa a secundaria y aunado a la adolescencia totalmente disfuncional, no trabajar, no hacer tareas, distraído, fuera del salón y debuta en el consumo de multiples sustancias, ingresa a preparatoria y definitivamente abandona por el consumo principalmente de cocaína, asi pues que no estudia. Acude a psicología en varias ocasiones y a psiquiatría, le dijeron que tenía depresión y ansiedad y le dieron sertralina 50mg-d. Hace 5 meses vive con el padre porque pelea mucho con la madre, pero igual con el padre, miente de todo, exagera todo, le aumenta a todo, coamete hurtosmenores en la tienda de la madre como golosinas o algun billete de 20 pesos, ayer se disgustaron porque ya desconfían mucho de él y se tardó en un mandado y se pelearon, y se puso alterado, golpeando paredes, diciendo que quería morirse, el señala que siente una gran necesidad de consumir sustancias pero que sabe que no puede, se siente desesperado por salir a consumir asi que ayer consumió thc y clonazepam 1.5mg, y al no consumir siente que ya no existe nada que para que está. Acuden a urgencias y les dicen que se esperen a la cita de psiquiatria infantil."
@@ -908,7 +924,7 @@ Guías Adicionales
         output_text = re.sub(r'<think>[\s\S]*?</think>', '', response).strip()
         return output_text
     # Inicializar estado
-    if "audio_data" not in st.session_state: 
+    if "audio_data" not in st.session_state:
         st.session_state["audio_data"] = None
     if "transcripcion" not in st.session_state:
         st.session_state["transcripcion"] = ""
