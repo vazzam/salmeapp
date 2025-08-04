@@ -952,16 +952,16 @@ Guías Adicionales
             rec_suffix = ".wav" if audio_value.get("format") == "wav" else ".webm"
             saved_path = save_audio_bytes_to_file(audio_value["bytes"], suffix=rec_suffix)
 
-        # Convertir a WAV si viene en webm
-          if saved_path.suffix.lower() != ".wav":
-              try:
-                  wav_path = convert_to_wav(saved_path)
-                  st.session_state["audio_file_path"] = str(wav_path)
-              except Exception as e:
-                  st.error(f"Error al convertir audio a WAV: {e}")
-                  st.session_state["audio_file_path"] = str(saved_path)  # fallback
-          else:
-              st.session_state["audio_file_path"] = str(saved_path)
+          #  Convertir a WAV si viene en webm
+            if saved_path.suffix.lower() != ".wav":
+                try:
+                    wav_path = convert_to_wav(saved_path)
+                    st.session_state["audio_file_path"] = str(wav_path)
+                except Exception as e:
+                    st.error(f"Error al convertir audio a WAV: {e}")
+                    st.session_state["audio_file_path"] = str(saved_path)  # fallback
+            else:
+                st.session_state["audio_file_path"] = str(saved_path)
 
         st.session_state["is_recording"] = False  # marcamos que ya tenemos una toma
         if st.session_state.get("audio_file_path"):
