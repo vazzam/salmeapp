@@ -3,10 +3,29 @@
 
 [theme]
 # Opcional: tema personalizado
-primaryColor = "#FF6B6B"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
+primaryColor = "#00D4AA"              # Verde azulado vibrante para elementos principales
+backgroundColor = "#0E1117"           # Fondo principal muy oscuro
+secondaryBackgroundColor = "#262730"  # Fondo secundario (sidebars, containers)
+textColor = "#FAFAFA"                 # Texto principal blanco suave
+font = "sans serif"                   # Fuente del sistema
+
+# Alternativa 1: Tema oscuro azul
+# primaryColor = "#1F77B4"            # Azul profesional
+# backgroundColor = "#0C0C0C"         # Negro profundo
+# secondaryBackgroundColor = "#1E1E1E" # Gris muy oscuro
+# textColor = "#E8E8E8"               # Gris claro
+
+# Alternativa 2: Tema oscuro morado
+# primaryColor = "#9146FF"            # Morado vibrante (estilo Twitch)
+# backgroundColor = "#18181B"         # Casi negro con tinte gris
+# secondaryBackgroundColor = "#27272A" # Gris zinc oscuro
+# textColor = "#F4F4F5"               # Blanco zinc
+
+# Alternativa 3: Tema oscuro naranja
+# primaryColor = "#FF6B35"            # Naranja energético
+# backgroundColor = "#111111"         # Negro puro
+# secondaryBackgroundColor = "#1F1F1F" # Gris carbón
+# textColor = "#EEEEEE"               # Blanco hueso
 
 [server]
 # Aumentar el timeout del servidor
