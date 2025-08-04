@@ -420,7 +420,7 @@ def chat_expediente(pregunta, expediente):
     respuesta = response.text
     return respuesta
 
-    def audio_recorder_transcriber_improved(nota: str):
+    def audio_recorder_transcriber(nota: str):
         """Función mejorada para grabar, segmentar y transcribir audio desde el navegador."""
         
         def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):
