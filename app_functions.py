@@ -457,9 +457,9 @@ def audio_recorder_transcriber(nota: str):
             if response.text:
                 try:
                     summarized = resumen_transcripcion(response.text, nota)
-                    summarized2 = resumen_transcripcion2(response.text, nota)
+                    #summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
-                    return summarized + " VERSION 2: --------»»              " + summarized2
+                    return summarized
                 except Exception:
                     summarized2 = resumen_transcripcion2(response.text, nota)
                     st.success("Transcripción completa exitosa")
