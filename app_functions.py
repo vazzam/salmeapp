@@ -618,8 +618,8 @@ def chat_expediente(pregunta, expediente):
                 if duration_minutes > 10:
                     st.warning(f"⚠️ Audio largo detectado: {duration_minutes:.1f} minutos. "
                               "Esto podría requerir procesamiento en segmentos.")
-        except:
-            pass
+            except:
+                pass
 
     return st.session_state[transcription_key]
     
