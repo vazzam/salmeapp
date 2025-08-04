@@ -420,208 +420,208 @@ def chat_expediente(pregunta, expediente):
     respuesta = response.text
     return respuesta
 
-    def audio_recorder_transcriber(nota: str):
-        """Función mejorada para grabar, segmentar y transcribir audio desde el navegador."""
-        
-        def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):
-            """Divide el audio en fragmentos menores con mejor manejo de errores."""
+def audio_recorder_transcriber(nota: str):
+    """Función mejorada para grabar, segmentar y transcribir audio desde el navegador."""
+    
+    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):
+        """Divide el audio en fragmentos menores con mejor manejo de errores."""
+        try:
+            # Verificar tamaño del archivo
+            audio_size_mb = len(audio_data.getvalue()) / (1024 * 1024)
+            if audio_size_mb > 25:
+                st.warning(f"El archivo de audio ({audio_size_mb:.2f} MB) es muy grande. Se dividirá en segmentos.")
+            
+            audio = AudioSegment.from_file(audio_data, format="webm")
+            duration_ms = len(audio)
+            segments = []
+            
+            if duration_ms <= segment_duration_ms:
+                # Si el audio es menor al límite, no dividir
+                return [audio_data]
+            
+            for start_ms in range(0, duration_ms, segment_duration_ms):
+                end_ms = min(start_ms + segment_duration_ms, duration_ms)
+                segment = audio[start_ms:end_ms]
+                segment_io = io.BytesIO()
+                segment.export(segment_io, format="webm")
+                segment_io.seek(0)
+                segments.append(segment_io)
+            
+            return segments
+        except Exception as e:
+            st.error(f"Error al segmentar el audio: {str(e)}")
+            return None
+
+    def transcribe_audio_with_retry(audio_data, max_retries=3):
+        """Transcribe el audio con reintentos y mejor manejo de errores."""
+        for attempt in range(max_retries):
             try:
-                # Verificar tamaño del archivo
+                st.info(f"Intento de transcripción {attempt + 1}/{max_retries}")
+                
+                # Verificar tamaño antes de enviar
                 audio_size_mb = len(audio_data.getvalue()) / (1024 * 1024)
                 if audio_size_mb > 25:
-                    st.warning(f"El archivo de audio ({audio_size_mb:.2f} MB) es muy grande. Se dividirá en segmentos.")
+                    st.error(f"El archivo ({audio_size_mb:.2f} MB) excede el límite de 25 MB")
+                    return None
                 
-                audio = AudioSegment.from_file(audio_data, format="webm")
-                duration_ms = len(audio)
-                segments = []
+                response = client.audio.transcriptions.create(
+                    model="openai/whisper-large-v3-turbo",
+                    file=("audio.webm", audio_data, "audio/webm"),
+                    language="es",
+                    timeout=300  # 5 minutos de timeout
+                )
                 
-                if duration_ms <= segment_duration_ms:
-                    # Si el audio es menor al límite, no dividir
-                    return [audio_data]
-                
-                for start_ms in range(0, duration_ms, segment_duration_ms):
-                    end_ms = min(start_ms + segment_duration_ms, duration_ms)
-                    segment = audio[start_ms:end_ms]
-                    segment_io = io.BytesIO()
-                    segment.export(segment_io, format="webm")
-                    segment_io.seek(0)
-                    segments.append(segment_io)
-                
-                return segments
+                if response.text:
+                    return response.text
+                    
             except Exception as e:
-                st.error(f"Error al segmentar el audio: {str(e)}")
-                return None
-    
-        def transcribe_audio_with_retry(audio_data, max_retries=3):
-            """Transcribe el audio con reintentos y mejor manejo de errores."""
-            for attempt in range(max_retries):
-                try:
-                    st.info(f"Intento de transcripción {attempt + 1}/{max_retries}")
-                    
-                    # Verificar tamaño antes de enviar
-                    audio_size_mb = len(audio_data.getvalue()) / (1024 * 1024)
-                    if audio_size_mb > 25:
-                        st.error(f"El archivo ({audio_size_mb:.2f} MB) excede el límite de 25 MB")
-                        return None
-                    
-                    response = client.audio.transcriptions.create(
-                        model="openai/whisper-large-v3-turbo",
-                        file=("audio.webm", audio_data, "audio/webm"),
-                        language="es",
-                        timeout=300  # 5 minutos de timeout
-                    )
-                    
-                    if response.text:
-                        return response.text
-                        
-                except Exception as e:
-                    st.error(f"Error en intento {attempt + 1}: {str(e)}")
-                    if attempt < max_retries - 1:
-                        st.info("Reintentando en 2 segundos...")
-                        time.sleep(2)
-                    else:
-                        st.error("Se agotaron los reintentos para la transcripción")
-            
-            return None
-    
-        def process_transcription(transcription_text, nota):
-            """Procesa la transcripción con manejo de errores mejorado."""
-            try:
-                summarized = resumen_transcripcion(transcription_text, nota)
-                try:
-                    summarized2 = resumen_transcripcion2(transcription_text, nota)
-                    return summarized + " VERSION 2: --------»»              " + summarized2
-                except Exception as e:
-                    st.warning(f"Error en resumen 2: {str(e)}")
-                    return summarized
-            except Exception as e:
-                try:
-                    st.warning(f"Error en resumen 1: {str(e)}")
-                    summarized2 = resumen_transcripcion2(transcription_text, nota)
-                    return summarized2
-                except Exception as e2:
-                    st.error(f"Error en ambos resúmenes: {str(e2)}")
-                    return transcription_text
-    
-        # Inicializar estado con claves únicas
-        audio_key = f"audio_data_{nota}"
-        transcription_key = f"transcripcion_{nota}"
-        recording_key = f"is_recording_{nota}"
-        processing_key = f"is_processing_{nota}"
+                st.error(f"Error en intento {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    st.info("Reintentando en 2 segundos...")
+                    time.sleep(2)
+                else:
+                    st.error("Se agotaron los reintentos para la transcripción")
         
-        if audio_key not in st.session_state:
-            st.session_state[audio_key] = None
-        if transcription_key not in st.session_state:
-            st.session_state[transcription_key] = ""
-        if recording_key not in st.session_state:
-            st.session_state[recording_key] = False
-        if processing_key not in st.session_state:
-            st.session_state[processing_key] = False
-    
-        # Interfaz mejorada
-        col1, col2, col3 = st.columns([2, 1, 1])
-        
-        with col1:
-            st.text('Grabación de Audio')
-            
-            # Usar key único para evitar conflictos
-            recorder_key = f"mic_recorder_{nota}_{datetime.now().strftime('%H%M%S')}"
-            
-            audio_value = mic_recorder(
-                start_prompt="🎙️ Iniciar Grabación",
-                stop_prompt="⏹️ Detener",
-                just_once=False,
-                use_container_width=True,
-                format="webm",
-                callback=None,
-                args=(),
-                kwargs={},
-                key=recorder_key
-            )
-            
-            # Mostrar información del audio si existe
-            if audio_value:
-                audio_size_mb = len(audio_value['bytes']) / (1024 * 1024)
-                st.info(f"Audio capturado: {audio_size_mb:.2f} MB")
-                
-                # Mostrar reproductor de audio
-                st.audio(audio_value['bytes'], format="audio/webm")
-                
-                # Guardar en session state
-                st.session_state[audio_key] = audio_value['bytes']
-                st.session_state[recording_key] = True
-    
-        with col2:
-            # Botón de transcripción con estado mejorado
-            transcribe_disabled = (
-                not st.session_state[audio_key] or 
-                st.session_state[processing_key]
-            )
-            
-            if st.button(
-                "🔮 Transcribir", 
-                use_container_width=True,
-                disabled=transcribe_disabled,
-                help="Haga clic para transcribir el audio grabado"
-            ):
-                if st.session_state[audio_key]:
-                    st.session_state[processing_key] = True
-                    st.session_state[recording_key] = False
-                    
-                    try:
-                        with st.spinner("Procesando transcripción..."):
-                            # Crear BytesIO desde los bytes
-                            audio_io = io.BytesIO(st.session_state[audio_key])
-                            
-                            # Intentar transcripción directa primero
-                            transcription = transcribe_audio_with_retry(audio_io)
-                            
-                            if transcription:
-                                # Procesar transcripción
-                                processed_result = process_transcription(transcription, nota)
-                                st.session_state[transcription_key] = processed_result
-                                st.success("✅ Transcripción completada exitosamente")
-                            else:
-                                st.error("❌ No se pudo completar la transcripción")
-                    
-                    except Exception as e:
-                        st.error(f"Error durante el procesamiento: {str(e)}")
-                    
-                    finally:
-                        st.session_state[processing_key] = False
-    
-        with col3:
-            # Botón para limpiar
-            if st.button("🗑️ Limpiar", use_container_width=True):
-                st.session_state[audio_key] = None
-                st.session_state[transcription_key] = ""
-                st.session_state[recording_key] = False
-                st.session_state[processing_key] = False
-                st.rerun()
-    
-        # Mostrar estado actual
-        if st.session_state[processing_key]:
-            st.info("🔄 Procesando audio... Por favor espere.")
-        elif st.session_state[recording_key] and st.session_state[audio_key]:
-            st.success("🎵 Audio listo para transcribir")
-        elif not st.session_state[audio_key]:
-            st.info("🎙️ Grabe un audio para comenzar")
-    
-        # Mostrar progreso de duración si hay audio
-        if st.session_state[audio_key]:
-            try:
-                audio_io = io.BytesIO(st.session_state[audio_key])
-                audio = AudioSegment.from_file(audio_io, format="webm")
-                duration_seconds = len(audio) / 1000
-                duration_minutes = duration_seconds / 60
-                
-                if duration_minutes > 10:
-                    st.warning(f"⚠️ Audio largo detectado: {duration_minutes:.1f} minutos. "
-                              "Esto podría requerir procesamiento en segmentos.")
-            except:
-                pass
+        return None
 
-    return st.session_state[transcription_key]
+    def process_transcription(transcription_text, nota):
+        """Procesa la transcripción con manejo de errores mejorado."""
+        try:
+            summarized = resumen_transcripcion(transcription_text, nota)
+            try:
+                summarized2 = resumen_transcripcion2(transcription_text, nota)
+                return summarized + " VERSION 2: --------»»              " + summarized2
+            except Exception as e:
+                st.warning(f"Error en resumen 2: {str(e)}")
+                return summarized
+        except Exception as e:
+            try:
+                st.warning(f"Error en resumen 1: {str(e)}")
+                summarized2 = resumen_transcripcion2(transcription_text, nota)
+                return summarized2
+            except Exception as e2:
+                st.error(f"Error en ambos resúmenes: {str(e2)}")
+                return transcription_text
+
+    # Inicializar estado con claves únicas
+    audio_key = f"audio_data_{nota}"
+    transcription_key = f"transcripcion_{nota}"
+    recording_key = f"is_recording_{nota}"
+    processing_key = f"is_processing_{nota}"
+    
+    if audio_key not in st.session_state:
+        st.session_state[audio_key] = None
+    if transcription_key not in st.session_state:
+        st.session_state[transcription_key] = ""
+    if recording_key not in st.session_state:
+        st.session_state[recording_key] = False
+    if processing_key not in st.session_state:
+        st.session_state[processing_key] = False
+
+    # Interfaz mejorada
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        st.text('Grabación de Audio')
+        
+        # Usar key único para evitar conflictos
+        recorder_key = f"mic_recorder_{nota}_{datetime.now().strftime('%H%M%S')}"
+        
+        audio_value = mic_recorder(
+            start_prompt="🎙️ Iniciar Grabación",
+            stop_prompt="⏹️ Detener",
+            just_once=False,
+            use_container_width=True,
+            format="webm",
+            callback=None,
+            args=(),
+            kwargs={},
+            key=recorder_key
+        )
+        
+        # Mostrar información del audio si existe
+        if audio_value:
+            audio_size_mb = len(audio_value['bytes']) / (1024 * 1024)
+            st.info(f"Audio capturado: {audio_size_mb:.2f} MB")
+            
+            # Mostrar reproductor de audio
+            st.audio(audio_value['bytes'], format="audio/webm")
+            
+            # Guardar en session state
+            st.session_state[audio_key] = audio_value['bytes']
+            st.session_state[recording_key] = True
+
+    with col2:
+        # Botón de transcripción con estado mejorado
+        transcribe_disabled = (
+            not st.session_state[audio_key] or 
+            st.session_state[processing_key]
+        )
+        
+        if st.button(
+            "🔮 Transcribir", 
+            use_container_width=True,
+            disabled=transcribe_disabled,
+            help="Haga clic para transcribir el audio grabado"
+        ):
+            if st.session_state[audio_key]:
+                st.session_state[processing_key] = True
+                st.session_state[recording_key] = False
+                
+                try:
+                    with st.spinner("Procesando transcripción..."):
+                        # Crear BytesIO desde los bytes
+                        audio_io = io.BytesIO(st.session_state[audio_key])
+                        
+                        # Intentar transcripción directa primero
+                        transcription = transcribe_audio_with_retry(audio_io)
+                        
+                        if transcription:
+                            # Procesar transcripción
+                            processed_result = process_transcription(transcription, nota)
+                            st.session_state[transcription_key] = processed_result
+                            st.success("✅ Transcripción completada exitosamente")
+                        else:
+                            st.error("❌ No se pudo completar la transcripción")
+                
+                except Exception as e:
+                    st.error(f"Error durante el procesamiento: {str(e)}")
+                
+                finally:
+                    st.session_state[processing_key] = False
+
+    with col3:
+        # Botón para limpiar
+        if st.button("🗑️ Limpiar", use_container_width=True):
+            st.session_state[audio_key] = None
+            st.session_state[transcription_key] = ""
+            st.session_state[recording_key] = False
+            st.session_state[processing_key] = False
+            st.rerun()
+
+    # Mostrar estado actual
+    if st.session_state[processing_key]:
+        st.info("🔄 Procesando audio... Por favor espere.")
+    elif st.session_state[recording_key] and st.session_state[audio_key]:
+        st.success("🎵 Audio listo para transcribir")
+    elif not st.session_state[audio_key]:
+        st.info("🎙️ Grabe un audio para comenzar")
+
+    # Mostrar progreso de duración si hay audio
+    if st.session_state[audio_key]:
+        try:
+            audio_io = io.BytesIO(st.session_state[audio_key])
+            audio = AudioSegment.from_file(audio_io, format="webm")
+            duration_seconds = len(audio) / 1000
+            duration_minutes = duration_seconds / 60
+            
+            if duration_minutes > 10:
+                st.warning(f"⚠️ Audio largo detectado: {duration_minutes:.1f} minutos. "
+                          "Esto podría requerir procesamiento en segmentos.")
+        except:
+            pass
+
+return st.session_state[transcription_key]
     
 def calculate_age(born):
     today = datetime.now()
