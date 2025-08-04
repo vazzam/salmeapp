@@ -1,2 +1,28 @@
+# [theme]
+# base = "dark"
+
 [theme]
-base = "dark"
+# Opcional: tema personalizado
+primaryColor = "#FF6B6B"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+
+[server]
+# Aumentar el timeout del servidor
+enableWebsocketCompression = false
+maxUploadSize = 200
+maxMessageSize = 200
+
+# Configuraciones para mejor rendimiento
+runOnSave = true
+fileWatcherType = "auto"
+
+[browser]
+# Evitar recarga automática en desarrollo
+gatherUsageStats = false
+
+[client]
+# Configuraciones del cliente
+caching = true
+showErrorDetails = true
