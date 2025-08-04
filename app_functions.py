@@ -621,7 +621,7 @@ def audio_recorder_transcriber(nota: str):
         except:
             pass
 
-return st.session_state[transcription_key]
+    return st.session_state[transcription_key]
     
 def calculate_age(born):
     today = datetime.now()
