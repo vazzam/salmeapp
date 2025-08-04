@@ -18,8 +18,6 @@ import os
 from dotenv import load_dotenv
 import tempfile
 from pathlib import Path
-import threading
-import hashlib
 
 RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
@@ -503,9 +501,19 @@ def audio_recorder_transcriber(nota: str):
                 st.error(f"Error en ambos resúmenes: {str(e2)}")
                 return transcription_text
 
-    def get_audio_hash(audio_bytes):
-        """Genera un hash único para el audio para detectar cambios."""
-        return hashlib.md5(audio_bytes).hexdigest()[:8]
+    def get_audio_signature(audio_bytes):
+        """Genera una firma única para el audio usando características básicas."""
+        if not audio_bytes:
+            return None
+        
+        # Usar longitud + primeros y últimos bytes como firma
+        length = len(audio_bytes)
+        start_bytes = audio_bytes[:min(100, length)]
+        end_bytes = audio_bytes[-min(100, length):] if length > 100 else b''
+        
+        # Crear una firma simple basada en características del audio
+        signature = f"{length}_{sum(start_bytes)}_{sum(end_bytes)}"
+        return signature
 
     def resumen_transcripcion(transcripcion, nota):
         model = genai.GenerativeModel('gemini-2.5-flash')
@@ -956,20 +964,19 @@ Guías Adicionales
         response = response.choices[0].message.content
         output_text = re.sub(r'<think>[\s\S]*?</think>', '', response).strip()
         return output_text
-    # Inicializar estado
+    
+    
+     # Inicializar estado con claves únicas
     audio_key = f"audio_data_{nota}"
     transcription_key = f"transcripcion_{nota}"
     processing_key = f"is_processing_{nota}"
-    audio_hash_key = f"audio_hash_{nota}"
+    audio_signature_key = f"audio_signature_{nota}"
     last_audio_key = f"last_audio_{nota}"
     
     # Inicializar session state
-    for key in [audio_key, transcription_key, audio_hash_key, last_audio_key]:
+    for key in [audio_key, transcription_key, audio_signature_key, last_audio_key]:
         if key not in st.session_state:
-            if key == processing_key:
-                st.session_state[key] = False
-            else:
-                st.session_state[key] = None
+            st.session_state[key] = None
 
     if processing_key not in st.session_state:
         st.session_state[processing_key] = False
@@ -999,18 +1006,18 @@ Guías Adicionales
         
         # Detectar nuevo audio o cambios
         current_audio = None
-        current_hash = None
+        current_signature = None
         
         if audio_value and audio_value.get('bytes'):
             current_audio = audio_value['bytes']
-            current_hash = get_audio_hash(current_audio)
+            current_signature = get_audio_signature(current_audio)
             
             # Verificar si es un audio nuevo o diferente
-            if (current_hash != st.session_state[audio_hash_key] or 
+            if (current_signature != st.session_state[audio_signature_key] or 
                 st.session_state[audio_key] is None):
                 
                 st.session_state[audio_key] = current_audio
-                st.session_state[audio_hash_key] = current_hash
+                st.session_state[audio_signature_key] = current_signature
                 st.session_state[last_audio_key] = current_audio
                 
                 # Forzar rerun para actualizar la interfaz
@@ -1022,7 +1029,7 @@ Guías Adicionales
                     help="Si el grabador no responde, usa este botón"):
             st.session_state["recorder_refresh"] += 1
             st.session_state[audio_key] = None
-            st.session_state[audio_hash_key] = None
+            st.session_state[audio_signature_key] = None
             st.rerun()
 
     # Mostrar información del audio si existe
@@ -1107,7 +1114,7 @@ Guías Adicionales
     with col_trans2:
         # Botón para limpiar todo
         if st.button("🗑️ Limpiar Todo", use_container_width=True):
-            keys_to_clear = [audio_key, transcription_key, audio_hash_key, last_audio_key]
+            keys_to_clear = [audio_key, transcription_key, audio_signature_key, last_audio_key]
             for key in keys_to_clear:
                 if key in st.session_state:
                     st.session_state[key] = None
@@ -1144,6 +1151,8 @@ Guías Adicionales
             )
 
     return st.session_state[transcription_key]
+
+    
 def calculate_age(born):
     today = datetime.now()
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
