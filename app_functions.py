@@ -1149,10 +1149,18 @@ Guías Adicionales
                 height=400,
                 key=f"transcription_display_{nota}"
             )
-
+    # Añadir al final de tu función, antes del return
+    if st.checkbox("🔧 Modo Debug"):
+        st.write("**Estado del Sistema:**")
+        st.write(f"Audio en memoria: {st.session_state[audio_key] is not None}")
+        st.write(f"Hash actual: {st.session_state[audio_hash_key]}")
+        st.write(f"Procesando: {st.session_state[processing_key]}")
+        st.write(f"Refresh count: {st.session_state.get('recorder_refresh', 0)}")
+        if audio_value:
+            st.write(f"Audio_value existe: {len(audio_value.get('bytes', b''))} bytes")
     return st.session_state[transcription_key]
 
-    
+
 def calculate_age(born):
     today = datetime.now()
     return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
