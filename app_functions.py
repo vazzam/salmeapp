@@ -1153,7 +1153,7 @@ Guías Adicionales
     if st.checkbox("🔧 Modo Debug"):
         st.write("**Estado del Sistema:**")
         st.write(f"Audio en memoria: {st.session_state[audio_key] is not None}")
-        st.write(f"Hash actual: {st.session_state[audio_hash_key]}")
+        # st.write(f"Hash actual: {st.session_state[audio_hash_key]}")
         st.write(f"Procesando: {st.session_state[processing_key]}")
         st.write(f"Refresh count: {st.session_state.get('recorder_refresh', 0)}")
         if audio_value:
