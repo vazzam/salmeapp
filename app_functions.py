@@ -423,33 +423,66 @@ def chat_expediente(pregunta, expediente):
 
 
 def audio_recorder_transcriber(nota: str):
-    """
-    Función mejorada para grabar, mostrar y transcribir audio de forma robusta en Streamlit.
-    Soluciona el problema de la desaparición del reproductor de audio.
-    """
+    """Función mejorada para grabar, segmentar y transcribir audio desde el navegador."""
     
-    # --- Funciones anidadas (puedes mantener las tuyas si prefieres) ---
-    def get_audio_signature(audio_bytes):
-        """Genera una firma simple para los bytes de audio para detectar cambios."""
-        if not audio_bytes:
+    def split_audio(audio_data: io.BytesIO, segment_duration_ms: int = 300000):
+        """Divide el audio en fragmentos menores con mejor manejo de errores."""
+        try:
+            audio_size_mb = len(audio_data.getvalue()) / (1024 * 1024)
+            if audio_size_mb > 25:
+                st.warning(f"El archivo de audio ({audio_size_mb:.2f} MB) es muy grande. Se dividirá en segmentos.")
+            
+            audio = AudioSegment.from_file(audio_data, format="webm")
+            duration_ms = len(audio)
+            segments = []
+            
+            if duration_ms <= segment_duration_ms:
+                return [audio_data]
+            
+            for start_ms in range(0, duration_ms, segment_duration_ms):
+                end_ms = min(start_ms + segment_duration_ms, duration_ms)
+                segment = audio[start_ms:end_ms]
+                segment_io = io.BytesIO()
+                segment.export(segment_io, format="webm")
+                segment_io.seek(0)
+                segments.append(segment_io)
+            
+            return segments
+        except Exception as e:
+            st.error(f"Error al segmentar el audio: {str(e)}")
             return None
-        return f"{len(audio_bytes)}_{sum(audio_bytes[:100])}"
 
     def transcribe_audio_with_retry(audio_data, max_retries=3):
-        """Transcribe el audio con reintentos."""
-        # Esta es una versión simplificada de tu función.
-        # Puedes usar tu versión completa con manejo de errores aquí.
-        try:
-            response = client.audio.transcriptions.create(
-                model="openai/whisper-large-v3-turbo",
-                file=("audio.webm", audio_data, "audio/webm"),
-                language="es",
-                timeout=300
-            )
-            return response.text
-        except Exception as e:
-            st.error(f"Error en la transcripción: {e}")
-            return None
+        """Transcribe el audio con reintentos y mejor manejo de errores."""
+        for attempt in range(max_retries):
+            try:
+                st.info(f"Intento de transcripción {attempt + 1}/{max_retries}")
+                
+                audio_size_mb = len(audio_data.getvalue()) / (1024 * 1024)
+                if audio_size_mb > 25:
+                    st.error(f"El archivo ({audio_size_mb:.2f} MB) excede el límite de 25 MB")
+                    return None
+                
+                response = client.audio.transcriptions.create(
+                    model="openai/whisper-large-v3-turbo",
+                    file=("audio.webm", audio_data, "audio/webm"),
+                    language="es",
+                    timeout=300
+                )
+                
+                if response.text:
+                    return response.text
+                    
+            except Exception as e:
+                st.error(f"Error en intento {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    st.info("Reintentando en 2 segundos...")
+                    time.sleep(2)
+                else:
+                    st.error("Se agotaron los reintentos para la transcripción")
+        
+        return None
+
     def process_transcription(transcription_text, nota):
         """Procesa la transcripción con manejo de errores mejorado."""
         try:
@@ -934,115 +967,200 @@ Guías Adicionales
         return output_text
     
     
-  # Usar claves únicas por cada instancia del grabador es crucial si tienes varios en la misma app.
+     # Inicializar estado con claves únicas
     audio_key = f"audio_data_{nota}"
-    signature_key = f"audio_signature_{nota}"
+    transcription_key = f"transcripcion_{nota}"
     processing_key = f"is_processing_{nota}"
-    recorder_key_val = f"recorder_key_{nota}"
+    audio_signature_key = f"audio_signature_{nota}"
+    last_audio_key = f"last_audio_{nota}"
+    
+    # Inicializar session state
+    for key in [audio_key, transcription_key, audio_signature_key, last_audio_key]:
+        if key not in st.session_state:
+            st.session_state[key] = None
 
-    # Inicialización del estado si no existe
-    if audio_key not in st.session_state:
-        st.session_state[audio_key] = None
-    if signature_key not in st.session_state:
-        st.session_state[signature_key] = None
     if processing_key not in st.session_state:
         st.session_state[processing_key] = False
-    if recorder_key_val not in st.session_state:
-        st.session_state[recorder_key_val] = 0
 
-    # --- Interfaz de Usuario ---
-    st.subheader("🎙️ Grabación de Audio")
+    # Crear una key única para el mic_recorder que cambie periódicamente
+    if "recorder_refresh" not in st.session_state:
+        st.session_state["recorder_refresh"] = 0
     
-    col1, col2 = st.columns([4, 1])
-
+    # Layout principal
+    st.subheader("🎙️ Grabación y Transcripción de Audio")
+    
+    # Crear columnas
+    col1, col2 = st.columns([3, 1])
+    
     with col1:
-        # Componente de grabación con una clave que podemos refrescar
-        audio_result = mic_recorder(
-            start_prompt="▶️ Iniciar Grabación",
+        # Componente de grabación con key única
+        recorder_key = f"mic_recorder_{nota}_{st.session_state['recorder_refresh']}"
+        
+        audio_value = mic_recorder(
+            start_prompt="🎙️ Iniciar Grabación",
             stop_prompt="⏹️ Detener Grabación",
             just_once=False,
             use_container_width=True,
             format="webm",
-            key=f"mic_recorder_{st.session_state[recorder_key_val]}"
+            key=recorder_key
         )
+        
+        # Detectar nuevo audio o cambios
+        current_audio = None
+        current_signature = None
+        
+        if audio_value and audio_value.get('bytes'):
+            time.sleep(1)
+            current_audio = audio_value['bytes']
+            current_signature = get_audio_signature(current_audio)
+            
+            # Verificar si es un audio nuevo o diferente
+            if (current_signature != st.session_state[audio_signature_key] or 
+                st.session_state[audio_key] is None):
+                
+                st.session_state[audio_key] = current_audio
+                st.session_state[audio_signature_key] = current_signature
+                st.session_state[last_audio_key] = current_audio
+                
+                # Forzar rerun para actualizar la interfaz
+                st.rerun()
 
     with col2:
-        # Botón para forzar un refresco del componente grabador si se bloquea
-        if st.button("🔄", help="Refrescar el grabador si no responde"):
-            st.session_state[recorder_key_val] += 1
+        # Botón de refrescar grabador si hay problemas
+        if st.button("🔄 Refrescar Grabador", use_container_width=True, 
+                    help="Si el grabador no responde, usa este botón"):
+            st.session_state["recorder_refresh"] += 1
             st.session_state[audio_key] = None
-            st.session_state[signature_key] = None
+            st.session_state[audio_signature_key] = None
             st.rerun()
 
-    # --- Lógica Principal para Capturar el Audio ---
-    # Este bloque es el corazón de la solución.
-    if audio_result and audio_result.get("bytes"):
-        new_audio_bytes = audio_result["bytes"]
-        new_signature = get_audio_signature(new_audio_bytes)
+    # Mostrar información del audio si existe
+    if st.session_state[audio_key]:
+        st.success("✅ Audio grabado correctamente")
         
-        # Comprobar si es una grabación nueva para evitar procesamientos innecesarios
-        if new_signature != st.session_state.get(signature_key):
-            st.session_state[audio_key] = new_audio_bytes
-            st.session_state[signature_key] = new_signature
-            # Forzar una nueva ejecución para que la UI se actualice inmediatamente
-            st.rerun()
-
-    # --- Mostrar Reproductor de Audio y Botón de Transcripción ---
-    # Esta sección ahora depende completamente de st.session_state, haciéndola estable.
-    if st.session_state[audio_key] is not None:
-        st.success("✅ Audio grabado. ¡Listo para reproducir y transcribir!")
+        # Información del audio
+        try:
+            audio_size_mb = len(st.session_state[audio_key]) / (1024 * 1024)
+            audio_io = io.BytesIO(st.session_state[audio_key])
+            audio_segment = AudioSegment.from_file(audio_io, format="webm")
+            duration_seconds = len(audio_segment) / 1000
+            
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.metric("Tamaño", f"{audio_size_mb:.2f} MB")
+            with col_info2:
+                st.metric("Duración", f"{duration_seconds:.1f} seg")
+                
+        except Exception as e:
+            st.warning(f"No se pudo analizar el audio: {str(e)}")
         
         # Reproductor de audio
         st.audio(st.session_state[audio_key], format="audio/webm")
         
-        # Botones de acción
-        can_transcribe = not st.session_state[processing_key]
+        # Advertencia para audios largos
+        try:
+            if duration_seconds > 600:  # 10 minutos
+                st.warning("⚠️ Audio muy largo. La transcripción puede tomar más tiempo.")
+        except:
+            pass
+
+    # Sección de transcripción
+    st.divider()
+    
+    col_trans1, col_trans2, col_trans3 = st.columns([2, 1, 1])
+    
+    with col_trans1:
+        # Botón de transcripción
+        can_transcribe = (
+            st.session_state[audio_key] is not None and 
+            not st.session_state[processing_key]
+        )
         
         if st.button(
-            "🔮 Transcribir y Resumir",
+            "🔮 Transcribir Audio", 
+            use_container_width=True,
             disabled=not can_transcribe,
-            type="primary"
+            type="primary" if can_transcribe else "secondary"
         ):
-            st.session_state[processing_key] = True
-            st.session_state[f"transcripcion_{nota}"] = "" # Limpiar transcripción anterior
-            
-            with st.spinner("Transcribiendo y procesando el audio... Esto puede tardar unos minutos."):
-                audio_io = io.BytesIO(st.session_state[audio_key])
+            if st.session_state[audio_key]:
+                st.session_state[processing_key] = True
                 
-                # Aquí llamas a tus funciones de transcripción y resumen
-                # Reemplaza esto con tu lógica completa si es necesario
-                full_transcription = transcribe_audio_with_retry(audio_io)
+                try:
+                    with st.spinner("🔄 Procesando transcripción... Por favor espere."):
+                        progress_bar = st.progress(0)
+                        progress_bar.progress(25, "Preparando audio...")
+                        
+                        audio_io = io.BytesIO(st.session_state[audio_key])
+                        progress_bar.progress(50, "Enviando a transcripción...")
+                        
+                        transcription = transcribe_audio_with_retry(audio_io)
+                        progress_bar.progress(75, "Generando resumen...")
+                        
+                        if transcription:
+                            processed_result = process_transcription(transcription, nota)
+                            st.session_state[transcription_key] = processed_result
+                            progress_bar.progress(100, "¡Completado!")
+                            time.sleep(1)
+                            progress_bar.empty()
+                            st.success("✅ Transcripción completada exitosamente")
+                        else:
+                            progress_bar.empty()
+                            st.error("❌ No se pudo completar la transcripción")
                 
-                if full_transcription:
-                    processed_result = process_transcription(full_transcription, nota)
-                    st.session_state[f"transcripcion_{nota}"] = processed_result
-                else:
-                    st.error("La transcripción falló. Por favor, inténtelo de nuevo.")
-            
-            st.session_state[processing_key] = False
-            st.rerun() # Volver a ejecutar para mostrar el resultado
+                except Exception as e:
+                    st.error(f"Error durante el procesamiento: {str(e)}")
+                
+                finally:
+                    st.session_state[processing_key] = False
 
-    # Botón para limpiar y empezar de nuevo
-    if st.session_state[audio_key] is not None:
-        if st.button("🗑️ Grabar de Nuevo"):
-            # Limpiar estado
-            st.session_state[audio_key] = None
-            st.session_state[signature_key] = None
-            st.session_state[f"transcripcion_{nota}"] = None
-            st.session_state[recorder_key_val] += 1 # Refrescar grabador
+    with col_trans2:
+        # Botón para limpiar todo
+        if st.button("🗑️ Limpiar Todo", use_container_width=True):
+            keys_to_clear = [audio_key, transcription_key, audio_signature_key, last_audio_key]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    st.session_state[key] = None
+            st.session_state[processing_key] = False
+            st.session_state["recorder_refresh"] += 1
+            st.success("✅ Todo limpiado")
+            time.sleep(1)
             st.rerun()
 
-    # Mostrar la transcripción si existe en el estado
-    if st.session_state.get(f"transcripcion_{nota}"):
+    with col_trans3:
+        # Botón para solo limpiar transcripción
+        if st.button("📝 Nueva Transcripción", use_container_width=True):
+            st.session_state[transcription_key] = ""
+            st.success("✅ Lista para nueva transcripción")
+
+    # Estado actual
+    if st.session_state[processing_key]:
+        st.info("🔄 Procesando audio... Por favor espere y no recargue la página.")
+    elif not st.session_state[audio_key]:
+        st.info("🎙️ Haga clic en 'Iniciar Grabación' para comenzar")
+    elif st.session_state[audio_key] and not st.session_state[transcription_key]:
+        st.info("🎵 Audio listo para transcribir. Haga clic en 'Transcribir Audio'")
+
+    # Mostrar transcripción si existe
+    if st.session_state[transcription_key]:
         st.divider()
-        st.subheader("📄 Resultado")
-        st.text_area(
-            "Nota generada:",
-            st.session_state[f"transcripcion_{nota}"],
-            height=300
-        )
-    
-    return st.session_state.get(f"transcripcion_{nota}")
+        st.subheader("📄 Resultado de la Transcripción")
+        with st.expander("Ver transcripción completa", expanded=True):
+            st.text_area(
+                "Transcripción y Resumen:", 
+                st.session_state[transcription_key], 
+                height=400,
+                key=f"transcription_display_{nota}"
+            )
+    # Añadir al final de tu función, antes del return
+    if st.checkbox("🔧 Modo Debug"):
+        st.write("**Estado del Sistema:**")
+        st.write(f"Audio en memoria: {st.session_state[audio_key] is not None}")
+        # st.write(f"Hash actual: {st.session_state[audio_hash_key]}")
+        st.write(f"Procesando: {st.session_state[processing_key]}")
+        st.write(f"Refresh count: {st.session_state.get('recorder_refresh', 0)}")
+        if audio_value:
+            st.write(f"Audio_value existe: {len(audio_value.get('bytes', b''))} bytes")
+    return st.session_state[transcription_key]
 
 
 def calculate_age(born):
