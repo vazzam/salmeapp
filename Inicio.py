@@ -16,18 +16,10 @@ from streamlit.components.v1 import html
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-from app_functions import (
-    get_audio_recorder_html,
-    process_audio_data,
-    initialize_audio_system,
-    WhisperTranscriber
-)
 
-# Al inicio de tu app
 load_dotenv()
 mongodb_uri = os.getenv("MONGODB_URI")
-gemini_api = os.getenv("GEMINI_API")
-deepinfra_api = os.getenv("DEEPINFRA_API")
+
 
 st.set_page_config(
     page_title=" Historia Clínica",
@@ -37,8 +29,6 @@ st.set_page_config(
 )
 
 
-if 'audio_initialized' not in st.session_state:
-    st.session_state.audio_initialized = initialize_audio_system()
 
 
 def get_base64_image(image_path):
@@ -512,7 +502,7 @@ with ficha_ID:
     if form_ID_button:
         date_chr = len(st.session_state.f_nacimiento)#.split("/")
         st.success('Se han guardado los cambios')
-transcripcion = afx.audio_recorder_transcriber_v2('primera', deepinfra_api)
+transcripcion = afx.audio_recorder_transcriber('primera')
 #=====================================================================================================
 # transcripcion = afx.audio_recorder_transcriber()
 iepa_form = st.form('iepa_form')
