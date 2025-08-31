@@ -614,6 +614,171 @@ html_ex = '''<!DOCTYPE html>
     </script>
 </body>
 </html>'''
+
+import asyncio
+from typing import Optional, List
+import aiohttp
+import backoff
+from openai import OpenAI
+import streamlit as st
+
+class WhisperTranscriber:
+    """Cliente robusto para transcripción con Whisper API."""
+    
+    def __init__(
+        self, 
+        api_key: str,
+        base_url: str = "https://api.deepinfra.com/v1/openai",
+        model: str = "openai/whisper-large-v3-turbo",
+        max_retries: int = 3,
+        timeout: int = 300
+    ):
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.model = model
+        self.max_retries = max_retries
+        self.timeout = timeout
+        
+    @backoff.on_exception(
+        backoff.expo,
+        (Exception,),
+        max_tries=3,
+        max_time=300,
+        on_backoff=lambda details: st.info(f"Reintentando... Intento {details['tries']}")
+    )
+    def transcribe_chunk(
+        self, 
+        audio_bytes: bytes,
+        language: str = "es",
+        prompt: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Transcribe un chunk de audio con reintentos exponenciales.
+        
+        Args:
+            audio_bytes: Audio en formato WAV
+            language: Código de idioma
+            prompt: Prompt opcional para mejorar la transcripción
+        
+        Returns:
+            Texto transcrito o None si falla
+        """
+        try:
+            # Crear archivo temporal para el audio
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
+                tmp_file.write(audio_bytes)
+                tmp_file_path = tmp_file.name
+            
+            # Preparar parámetros
+            params = {
+                "model": self.model,
+                "language": language,
+                "response_format": "text",
+                "temperature": 0.2
+            }
+            
+            if prompt:
+                params["prompt"] = prompt
+            
+            # Realizar transcripción
+            with open(tmp_file_path, "rb") as audio_file:
+                response = self.client.audio.transcriptions.create(
+                    file=audio_file,
+                    **params
+                )
+            
+            # Limpiar archivo temporal
+            os.unlink(tmp_file_path)
+            
+            return response.text if hasattr(response, 'text') else str(response)
+            
+        except Exception as e:
+            st.error(f"Error en transcripción: {str(e)}")
+            
+            # Limpiar archivo temporal si existe
+            if 'tmp_file_path' in locals() and os.path.exists(tmp_file_path):
+                os.unlink(tmp_file_path)
+            
+            raise  # Re-raise para que backoff lo maneje
+    
+    def transcribe_with_chunks(
+        self,
+        audio_chunks: List[bytes],
+        language: str = "es",
+        show_progress: bool = True
+    ) -> str:
+        """
+        Transcribe múltiples chunks y los une.
+        
+        Args:
+            audio_chunks: Lista de chunks de audio
+            language: Código de idioma
+            show_progress: Mostrar barra de progreso
+        
+        Returns:
+            Transcripción completa
+        """
+        transcriptions = []
+        
+        if show_progress:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+        
+        # Contexto para mejorar la continuidad entre chunks
+        context = "Transcripción de consulta médica en español. "
+        
+        for i, chunk in enumerate(audio_chunks):
+            if show_progress:
+                progress = (i + 1) / len(audio_chunks)
+                progress_bar.progress(progress)
+                status_text.text(f"Transcribiendo parte {i+1} de {len(audio_chunks)}...")
+            
+            # Usar el final de la transcripción anterior como contexto
+            if transcriptions:
+                # Tomar las últimas 50 palabras como contexto
+                last_words = ' '.join(transcriptions[-1].split()[-50:])
+                prompt = context + last_words
+            else:
+                prompt = context
+            
+            try:
+                transcription = self.transcribe_chunk(chunk, language, prompt)
+                if transcription:
+                    transcriptions.append(transcription.strip())
+            except Exception as e:
+                st.warning(f"Fallo en chunk {i+1}: {str(e)}")
+                continue
+        
+        if show_progress:
+            progress_bar.empty()
+            status_text.empty()
+        
+        # Unir transcripciones eliminando posibles duplicados en los bordes
+        if not transcriptions:
+            return ""
+        
+        full_text = transcriptions[0]
+        for i in range(1, len(transcriptions)):
+            # Buscar overlap entre el final del texto anterior y el inicio del siguiente
+            overlap = self._find_overlap(full_text, transcriptions[i])
+            if overlap > 0:
+                full_text += transcriptions[i][overlap:]
+            else:
+                full_text += " " + transcriptions[i]
+        
+        return full_text
+    
+    def _find_overlap(self, text1: str, text2: str, max_overlap: int = 100) -> int:
+        """Encuentra el overlap entre dos textos."""
+        words1 = text1.split()
+        words2 = text2.split()
+        
+        max_check = min(max_overlap, len(words1), len(words2))
+        
+        for i in range(max_check, 0, -1):
+            if words1[-i:] == words2[:i]:
+                return len(' '.join(words2[:i])) + 1  # +1 for space
+        
+        return 0
 import base64
 import tempfile
 from typing import Optional, Tuple, List
