@@ -31,6 +31,272 @@ def save_audio_bytes_to_file(audio_bytes: bytes, suffix: str = ".webm") -> Path:
         f.write(audio_bytes)
     return file_path
 
+def get_audio_recorder_html():
+    """
+    Componente HTML/JS para grabación de audio compatible con móvil y desktop.
+    Utiliza MediaRecorder API con fallbacks y optimizaciones.
+    """
+    return """
+    <div id="audioRecorder">
+        <style>
+            .recorder-container {
+                padding: 20px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                border-radius: 15px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                margin: 20px 0;
+            }
+            .recorder-controls {
+                display: flex;
+                gap: 15px;
+                justify-content: center;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .recorder-btn {
+                padding: 12px 24px;
+                font-size: 16px;
+                font-weight: 600;
+                border: none;
+                border-radius: 25px;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                min-width: 120px;
+            }
+            .record-btn {
+                background: #28a745;
+                color: white;
+            }
+            .record-btn:hover:not(:disabled) {
+                background: #218838;
+                transform: scale(1.05);
+            }
+            .stop-btn {
+                background: #dc3545;
+                color: white;
+            }
+            .stop-btn:hover:not(:disabled) {
+                background: #c82333;
+                transform: scale(1.05);
+            }
+            .recorder-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            .status-display {
+                text-align: center;
+                margin: 15px 0;
+                font-size: 18px;
+                color: white;
+                font-weight: 500;
+            }
+            .timer {
+                font-family: 'Courier New', monospace;
+                font-size: 24px;
+                color: #ffd700;
+                margin: 10px 0;
+            }
+            .audio-preview {
+                width: 100%;
+                margin: 15px 0;
+                border-radius: 10px;
+            }
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
+                70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+            }
+            .recording {
+                animation: pulse 1.5s infinite;
+            }
+        </style>
+        
+        <div class="recorder-container">
+            <div class="status-display" id="status">🎙️ Listo para grabar</div>
+            <div class="timer" id="timer">00:00</div>
+            
+            <div class="recorder-controls">
+                <button id="recordBtn" class="recorder-btn record-btn">
+                    🔴 Iniciar Grabación
+                </button>
+                <button id="stopBtn" class="recorder-btn stop-btn" disabled>
+                    ⏹️ Detener
+                </button>
+            </div>
+            
+            <audio id="audioPreview" class="audio-preview" controls style="display:none;"></audio>
+        </div>
+    </div>
+    
+    <script>
+    (function() {
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+        let startTime;
+        let timerInterval;
+        let stream;
+        
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusDiv = document.getElementById('status');
+        const timerDiv = document.getElementById('timer');
+        const audioPreview = document.getElementById('audioPreview');
+        
+        // Configuración de audio optimizada para voz
+        const constraints = {
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                sampleRate: 16000,
+                channelCount: 1
+            }
+        };
+        
+        // Detectar el mejor formato de audio soportado
+        function getSupportedMimeType() {
+            const types = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/mp4',
+                'audio/mpeg'
+            ];
+            
+            for (let type of types) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    return type;
+                }
+            }
+            return 'audio/webm'; // fallback
+        }
+        
+        // Actualizar timer
+        function updateTimer() {
+            if (!startTime) return;
+            const elapsed = Date.now() - startTime;
+            const seconds = Math.floor(elapsed / 1000);
+            const minutes = Math.floor(seconds / 60);
+            const displaySeconds = seconds % 60;
+            timerDiv.textContent = 
+                String(minutes).padStart(2, '0') + ':' + 
+                String(displaySeconds).padStart(2, '0');
+        }
+        
+        // Iniciar grabación
+        async function startRecording() {
+            try {
+                // Solicitar permisos de micrófono
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const mimeType = getSupportedMimeType();
+                const options = {
+                    mimeType: mimeType,
+                    audioBitsPerSecond: 128000
+                };
+                
+                mediaRecorder = new MediaRecorder(stream, options);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Mostrar preview
+                    audioPreview.src = audioUrl;
+                    audioPreview.style.display = 'block';
+                    
+                    // Convertir a base64 y enviar a Streamlit
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64Audio = reader.result.split(',')[1];
+                        
+                        // Enviar a Streamlit usando el componente
+                        window.parent.postMessage({
+                            type: 'streamlit:setComponentValue',
+                            data: {
+                                audio_data: base64Audio,
+                                mime_type: mimeType,
+                                duration: (Date.now() - startTime) / 1000,
+                                size: audioBlob.size
+                            }
+                        }, '*');
+                    };
+                    reader.readAsDataURL(audioBlob);
+                    
+                    // Limpiar stream
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                };
+                
+                // Comenzar grabación
+                mediaRecorder.start(1000); // Chunks cada segundo
+                isRecording = true;
+                startTime = Date.now();
+                
+                // UI updates
+                recordBtn.disabled = true;
+                stopBtn.disabled = false;
+                recordBtn.classList.add('recording');
+                statusDiv.textContent = '🔴 Grabando...';
+                
+                // Iniciar timer
+                timerInterval = setInterval(updateTimer, 100);
+                
+            } catch (error) {
+                console.error('Error al iniciar grabación:', error);
+                statusDiv.textContent = '❌ Error: ' + error.message;
+                
+                // Mensajes específicos para errores comunes
+                if (error.name === 'NotAllowedError') {
+                    alert('Por favor, permite el acceso al micrófono para continuar.');
+                } else if (error.name === 'NotFoundError') {
+                    alert('No se encontró ningún micrófono. Verifica tu dispositivo.');
+                } else if (error.name === 'NotReadableError') {
+                    alert('El micrófono está siendo usado por otra aplicación.');
+                }
+            }
+        }
+        
+        // Detener grabación
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                // UI updates
+                recordBtn.disabled = false;
+                stopBtn.disabled = true;
+                recordBtn.classList.remove('recording');
+                statusDiv.textContent = '✅ Grabación completada';
+                
+                // Detener timer
+                clearInterval(timerInterval);
+            }
+        }
+        
+        // Event listeners
+        recordBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+        
+        // Cleanup al salir
+        window.addEventListener('beforeunload', () => {
+            if (isRecording) {
+                stopRecording();
+            }
+        });
+    })();
+    </script>
+    """
+
 def convert_to_wav(input_path: Path) -> Path:
     """Convierte webm/mp3 a wav mono 16kHz usando pydub."""
     audio = AudioSegment.from_file(input_path)
@@ -348,7 +614,676 @@ html_ex = '''<!DOCTYPE html>
     </script>
 </body>
 </html>'''
+import base64
+import tempfile
+from typing import Optional, Tuple, List
+import numpy as np
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
+import io
+import time
+import streamlit as st
 
+def process_audio_data(
+    base64_audio: str, 
+    mime_type: str = "audio/webm",
+    max_size_mb: float = 25.0,
+    chunk_duration_ms: int = 600000  # 10 minutos
+) -> Tuple[Optional[bytes], Optional[List[bytes]], dict]:
+    """
+    Procesa audio base64, convierte a formato compatible y divide en chunks si es necesario.
+    
+    Args:
+        base64_audio: Audio en formato base64
+        mime_type: Tipo MIME del audio
+        max_size_mb: Tamaño máximo por chunk en MB
+        chunk_duration_ms: Duración máxima por chunk en milisegundos
+    
+    Returns:
+        Tupla (audio_completo, lista_chunks, metadata)
+    """
+    metadata = {
+        'original_size': 0,
+        'processed_size': 0,
+        'duration_ms': 0,
+        'num_chunks': 0,
+        'format': 'wav',
+        'sample_rate': 16000,
+        'channels': 1,
+        'errors': []
+    }
+    
+    try:
+        # Decodificar base64
+        audio_bytes = base64.b64decode(base64_audio)
+        metadata['original_size'] = len(audio_bytes)
+        
+        # Crear objeto AudioSegment
+        audio_io = io.BytesIO(audio_bytes)
+        
+        # Intentar decodificar con diferentes formatos
+        audio = None
+        for fmt in ['webm', 'ogg', 'mp4', 'mp3', 'wav']:
+            try:
+                audio = AudioSegment.from_file(audio_io, format=fmt)
+                break
+            except:
+                audio_io.seek(0)
+                continue
+        
+        if audio is None:
+            raise CouldntDecodeError("No se pudo decodificar el audio")
+        
+        # Normalizar audio para Whisper (mono, 16kHz)
+        audio = audio.set_channels(1)
+        audio = audio.set_frame_rate(16000)
+        
+        # Normalizar volumen
+        target_dBFS = -20
+        change_in_dBFS = target_dBFS - audio.dBFS
+        if abs(change_in_dBFS) > 0.5:
+            audio = audio.apply_gain(change_in_dBFS)
+        
+        metadata['duration_ms'] = len(audio)
+        
+        # Exportar audio completo a WAV
+        audio_buffer = io.BytesIO()
+        audio.export(audio_buffer, format="wav")
+        audio_buffer.seek(0)
+        complete_audio = audio_buffer.getvalue()
+        metadata['processed_size'] = len(complete_audio)
+        
+        # Verificar si necesita chunking
+        size_mb = len(complete_audio) / (1024 * 1024)
+        
+        chunks = []
+        if size_mb > max_size_mb or metadata['duration_ms'] > chunk_duration_ms:
+            # Dividir en chunks
+            num_chunks = max(
+                int(np.ceil(size_mb / max_size_mb)),
+                int(np.ceil(metadata['duration_ms'] / chunk_duration_ms))
+            )
+            
+            chunk_duration = metadata['duration_ms'] // num_chunks
+            
+            for i in range(num_chunks):
+                start_ms = i * chunk_duration
+                end_ms = min((i + 1) * chunk_duration, metadata['duration_ms'])
+                
+                chunk = audio[start_ms:end_ms]
+                
+                # Añadir overlap de 500ms para evitar cortes en palabras
+                if i > 0:
+                    overlap_start = max(0, start_ms - 500)
+                    chunk = audio[overlap_start:end_ms]
+                
+                chunk_buffer = io.BytesIO()
+                chunk.export(chunk_buffer, format="wav")
+                chunk_buffer.seek(0)
+                chunks.append(chunk_buffer.getvalue())
+            
+            metadata['num_chunks'] = len(chunks)
+        
+        return complete_audio, chunks if chunks else None, metadata
+        
+    except Exception as e:
+        metadata['errors'].append(str(e))
+        st.error(f"Error procesando audio: {str(e)}")
+        return None, None, metadata
+
+import streamlit.components.v1 as components
+import json
+from datetime import datetime
+import hashlib
+
+def audio_recorder_transcriber_v2(
+    nota: str,
+    api_key: str,
+    base_url: str = "https://api.deepinfra.com/v1/openai"
+) -> Optional[str]:
+    """
+    Sistema completo de grabación y transcripción de audio con soporte móvil.
+    
+    Args:
+        nota: Tipo de nota ('primera', 'primera_paido', 'subsecuente')
+        api_key: API key para el servicio de transcripción
+        base_url: URL base de la API
+    
+    Returns:
+        Transcripción procesada o None
+    """
+    
+    # Inicializar session state con keys únicas
+    state_keys = {
+        'audio_data': f'audio_data_{nota}',
+        'audio_metadata': f'audio_metadata_{nota}',
+        'transcription': f'transcription_{nota}',
+        'is_processing': f'is_processing_{nota}',
+        'audio_hash': f'audio_hash_{nota}',
+        'show_recorder': f'show_recorder_{nota}'
+    }
+    
+    # Inicializar estados
+    for key, state_key in state_keys.items():
+        if state_key not in st.session_state:
+            if key in ['is_processing', 'show_recorder']:
+                st.session_state[state_key] = False if key == 'is_processing' else True
+            else:
+                st.session_state[state_key] = None
+    
+    # UI Principal
+    st.markdown("### 🎙️ Sistema de Grabación y Transcripción")
+    
+    # Contenedor para el grabador
+    if st.session_state[state_keys['show_recorder']]:
+        with st.container():
+            # Insertar componente HTML del grabador
+            audio_component = components.html(
+                get_audio_recorder_html(),
+                height=400,
+                scrolling=False
+            )
+    
+    # Sección de controles
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+    
+    with col1:
+        # Simulación de recepción de datos (en producción, usar JavaScript postMessage)
+        uploaded_audio = st.file_uploader(
+            "O sube un archivo de audio",
+            type=['wav', 'mp3', 'webm', 'ogg', 'mp4'],
+            key=f"uploader_{nota}",
+            help="Formatos soportados: WAV, MP3, WebM, OGG, MP4"
+        )
+        
+        if uploaded_audio:
+            audio_bytes = uploaded_audio.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            
+            # Calcular hash para detectar cambios
+            audio_hash = hashlib.md5(audio_bytes).hexdigest()
+            
+            if audio_hash != st.session_state[state_keys['audio_hash']]:
+                st.session_state[state_keys['audio_data']] = audio_b64
+                st.session_state[state_keys['audio_hash']] = audio_hash
+                st.session_state[state_keys['audio_metadata']] = {
+                    'mime_type': uploaded_audio.type,
+                    'size': len(audio_bytes),
+                    'name': uploaded_audio.name
+                }
+                st.success("✅ Audio cargado correctamente")
+    
+    with col2:
+        if st.button(
+            "🔄 Nuevo Audio",
+            use_container_width=True,
+            disabled=st.session_state[state_keys['is_processing']]
+        ):
+            # Limpiar audio actual
+            st.session_state[state_keys['audio_data']] = None
+            st.session_state[state_keys['audio_metadata']] = None
+            st.session_state[state_keys['audio_hash']] = None
+            st.session_state[state_keys['show_recorder']] = True
+            st.rerun()
+    
+    with col3:
+        # Botón de transcripción
+        can_transcribe = (
+            st.session_state[state_keys['audio_data']] is not None and 
+            not st.session_state[state_keys['is_processing']]
+        )
+        
+        if st.button(
+            "📝 Transcribir",
+            use_container_width=True,
+            disabled=not can_transcribe,
+            type="primary" if can_transcribe else "secondary"
+        ):
+            st.session_state[state_keys['is_processing']] = True
+            st.rerun()
+    
+    with col4:
+        if st.button(
+            "🗑️ Limpiar Todo",
+            use_container_width=True,
+            disabled=st.session_state[state_keys['is_processing']]
+        ):
+            for state_key in state_keys.values():
+                if 'show_recorder' not in state_key:
+                    st.session_state[state_key] = None
+            st.session_state[state_keys['show_recorder']] = True
+            st.success("✅ Limpieza completa")
+            time.sleep(1)
+            st.rerun()
+    
+    # Mostrar información del audio
+    if st.session_state[state_keys['audio_data']] and st.session_state[state_keys['audio_metadata']]:
+        with st.expander("📊 Información del Audio", expanded=True):
+            metadata = st.session_state[state_keys['audio_metadata']]
+            
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                size_mb = metadata.get('size', 0) / (1024 * 1024)
+                st.metric("Tamaño", f"{size_mb:.2f} MB")
+            with col_info2:
+                duration = metadata.get('duration', 0)
+                if duration:
+                    st.metric("Duración", f"{duration:.1f} seg")
+            with col_info3:
+                st.metric("Formato", metadata.get('mime_type', 'Unknown'))
+            
+            # Mostrar reproductor
+            if st.session_state[state_keys['audio_data']]:
+                audio_bytes = base64.b64decode(st.session_state[state_keys['audio_data']])
+                st.audio(audio_bytes, format=metadata.get('mime_type', 'audio/wav'))
+    
+    # Proceso de transcripción
+    if st.session_state[state_keys['is_processing']] and st.session_state[state_keys['audio_data']]:
+        
+        with st.container():
+            st.markdown("---")
+            
+            with st.status("🔄 Procesando transcripción...", expanded=True) as status:
+                
+                try:
+                    # Paso 1: Procesar audio
+                    status.update(label="🎵 Procesando audio...", state="running")
+                    
+                    audio_complete, audio_chunks, audio_metadata = process_audio_data(
+                        st.session_state[state_keys['audio_data']],
+                        st.session_state[state_keys['audio_metadata']].get('mime_type', 'audio/webm')
+                    )
+                    
+                    if not audio_complete:
+                        raise ValueError("Error al procesar el audio")
+                    
+                    # Mostrar información del procesamiento
+                    st.info(f"""
+                    📊 **Audio procesado:**
+                    - Tamaño original: {audio_metadata['original_size'] / (1024*1024):.2f} MB
+                    - Tamaño procesado: {audio_metadata['processed_size'] / (1024*1024):.2f} MB
+                    - Duración: {audio_metadata['duration_ms'] / 1000:.1f} segundos
+                    - Chunks: {audio_metadata['num_chunks'] if audio_metadata['num_chunks'] > 0 else 1}
+                    """)
+                    
+                    # Paso 2: Transcribir
+                    status.update(label="🎯 Transcribiendo audio...", state="running")
+                    
+                    transcriber = WhisperTranscriber(api_key=api_key, base_url=base_url)
+                    
+                    if audio_chunks:
+                        # Transcribir por chunks
+                        st.info(f"📦 Procesando {len(audio_chunks)} segmentos...")
+                        transcription = transcriber.transcribe_with_chunks(
+                            audio_chunks,
+                            language="es",
+                            show_progress=True
+                        )
+                    else:
+                        # Transcribir audio completo
+                        transcription = transcriber.transcribe_chunk(
+                            audio_complete,
+                            language="es"
+                        )
+                    
+                    if not transcription:
+                        raise ValueError("La transcripción está vacía")
+                    
+                    # Paso 3: Generar resumen
+                    status.update(label="📋 Generando resumen clínico...", state="running")
+                    
+                    # Usar las funciones existentes de resumen
+                    summary = resumen_transcripcion(transcription, nota)
+                    
+                    # Intentar segundo resumen si está disponible
+                    try:
+                        summary2 = resumen_transcripcion2(transcription, nota)
+                        if summary2:
+                            final_result = f"{summary}\n\n--- VERSIÓN ALTERNATIVA ---\n\n{summary2}"
+                        else:
+                            final_result = summary
+                    except:
+                        final_result = summary
+                    
+                    # Guardar resultado
+                    st.session_state[state_keys['transcription']] = final_result
+                    
+                    status.update(label="✅ Transcripción completada", state="complete")
+                    st.success("🎉 Proceso completado exitosamente")
+                    
+                except Exception as e:
+                    status.update(label=f"❌ Error: {str(e)}", state="error")
+                    st.error(f"Error durante el procesamiento: {str(e)}")
+                    
+                finally:
+                    st.session_state[state_keys['is_processing']] = False
+                    time.sleep(2)
+                    st.rerun()
+    
+    # Mostrar transcripción si existe
+    if st.session_state[state_keys['transcription']]:
+        st.markdown("---")
+        st.markdown("### 📄 Resultado de la Transcripción")
+        
+        # Opciones de visualización
+        col_view1, col_view2, col_view3 = st.columns([2, 1, 1])
+        
+        with col_view1:
+            view_expanded = st.checkbox("Expandir resultado", value=True)
+        
+        with col_view2:
+            if st.button("📋 Copiar al portapapeles"):
+                st.write("Copiado!")  # En producción, usar JavaScript para copiar
+        
+        with col_view3:
+            # Descargar como archivo
+            st.download_button(
+                "💾 Descargar TXT",
+                st.session_state[state_keys['transcription']],
+                file_name=f"transcripcion_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain"
+            )
+        
+        # Mostrar transcripción
+        with st.expander("Transcripción y Resumen", expanded=view_expanded):
+            st.text_area(
+                "",
+                st.session_state[state_keys['transcription']],
+                height=400,
+                key=f"display_{nota}_{datetime.now().timestamp()}"
+            )
+    
+    # Estadísticas de sesión
+    with st.sidebar:
+        st.markdown("### 📊 Estado de la Sesión")
+        
+        status_info = {
+            "Audio cargado": "✅" if st.session_state[state_keys['audio_data']] else "❌",
+            "Transcripción": "✅" if st.session_state[state_keys['transcription']] else "❌",
+            "Procesando": "🔄" if st.session_state[state_keys['is_processing']] else "⏸️"
+        }
+        
+        for label, status in status_info.items():
+            st.write(f"{status} {label}")
+    
+    return st.session_state[state_keys['transcription']]
+    
+import streamlit.components.v1 as components
+import json
+from datetime import datetime
+import hashlib
+
+def audio_recorder_transcriber_v2(
+    nota: str,
+    api_key: str,
+    base_url: str = "https://api.deepinfra.com/v1/openai"
+) -> Optional[str]:
+    """
+    Sistema completo de grabación y transcripción de audio con soporte móvil.
+    
+    Args:
+        nota: Tipo de nota ('primera', 'primera_paido', 'subsecuente')
+        api_key: API key para el servicio de transcripción
+        base_url: URL base de la API
+    
+    Returns:
+        Transcripción procesada o None
+    """
+    
+    # Inicializar session state con keys únicas
+    state_keys = {
+        'audio_data': f'audio_data_{nota}',
+        'audio_metadata': f'audio_metadata_{nota}',
+        'transcription': f'transcription_{nota}',
+        'is_processing': f'is_processing_{nota}',
+        'audio_hash': f'audio_hash_{nota}',
+        'show_recorder': f'show_recorder_{nota}'
+    }
+    
+    # Inicializar estados
+    for key, state_key in state_keys.items():
+        if state_key not in st.session_state:
+            if key in ['is_processing', 'show_recorder']:
+                st.session_state[state_key] = False if key == 'is_processing' else True
+            else:
+                st.session_state[state_key] = None
+    
+    # UI Principal
+    st.markdown("### 🎙️ Sistema de Grabación y Transcripción")
+    
+    # Contenedor para el grabador
+    if st.session_state[state_keys['show_recorder']]:
+        with st.container():
+            # Insertar componente HTML del grabador
+            audio_component = components.html(
+                get_audio_recorder_html(),
+                height=400,
+                scrolling=False
+            )
+    
+    # Sección de controles
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+    
+    with col1:
+        # Simulación de recepción de datos (en producción, usar JavaScript postMessage)
+        uploaded_audio = st.file_uploader(
+            "O sube un archivo de audio",
+            type=['wav', 'mp3', 'webm', 'ogg', 'mp4'],
+            key=f"uploader_{nota}",
+            help="Formatos soportados: WAV, MP3, WebM, OGG, MP4"
+        )
+        
+        if uploaded_audio:
+            audio_bytes = uploaded_audio.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode()
+            
+            # Calcular hash para detectar cambios
+            audio_hash = hashlib.md5(audio_bytes).hexdigest()
+            
+            if audio_hash != st.session_state[state_keys['audio_hash']]:
+                st.session_state[state_keys['audio_data']] = audio_b64
+                st.session_state[state_keys['audio_hash']] = audio_hash
+                st.session_state[state_keys['audio_metadata']] = {
+                    'mime_type': uploaded_audio.type,
+                    'size': len(audio_bytes),
+                    'name': uploaded_audio.name
+                }
+                st.success("✅ Audio cargado correctamente")
+    
+    with col2:
+        if st.button(
+            "🔄 Nuevo Audio",
+            use_container_width=True,
+            disabled=st.session_state[state_keys['is_processing']]
+        ):
+            # Limpiar audio actual
+            st.session_state[state_keys['audio_data']] = None
+            st.session_state[state_keys['audio_metadata']] = None
+            st.session_state[state_keys['audio_hash']] = None
+            st.session_state[state_keys['show_recorder']] = True
+            st.rerun()
+    
+    with col3:
+        # Botón de transcripción
+        can_transcribe = (
+            st.session_state[state_keys['audio_data']] is not None and 
+            not st.session_state[state_keys['is_processing']]
+        )
+        
+        if st.button(
+            "📝 Transcribir",
+            use_container_width=True,
+            disabled=not can_transcribe,
+            type="primary" if can_transcribe else "secondary"
+        ):
+            st.session_state[state_keys['is_processing']] = True
+            st.rerun()
+    
+    with col4:
+        if st.button(
+            "🗑️ Limpiar Todo",
+            use_container_width=True,
+            disabled=st.session_state[state_keys['is_processing']]
+        ):
+            for state_key in state_keys.values():
+                if 'show_recorder' not in state_key:
+                    st.session_state[state_key] = None
+            st.session_state[state_keys['show_recorder']] = True
+            st.success("✅ Limpieza completa")
+            time.sleep(1)
+            st.rerun()
+    
+    # Mostrar información del audio
+    if st.session_state[state_keys['audio_data']] and st.session_state[state_keys['audio_metadata']]:
+        with st.expander("📊 Información del Audio", expanded=True):
+            metadata = st.session_state[state_keys['audio_metadata']]
+            
+            col_info1, col_info2, col_info3 = st.columns(3)
+            with col_info1:
+                size_mb = metadata.get('size', 0) / (1024 * 1024)
+                st.metric("Tamaño", f"{size_mb:.2f} MB")
+            with col_info2:
+                duration = metadata.get('duration', 0)
+                if duration:
+                    st.metric("Duración", f"{duration:.1f} seg")
+            with col_info3:
+                st.metric("Formato", metadata.get('mime_type', 'Unknown'))
+            
+            # Mostrar reproductor
+            if st.session_state[state_keys['audio_data']]:
+                audio_bytes = base64.b64decode(st.session_state[state_keys['audio_data']])
+                st.audio(audio_bytes, format=metadata.get('mime_type', 'audio/wav'))
+    
+    # Proceso de transcripción
+    if st.session_state[state_keys['is_processing']] and st.session_state[state_keys['audio_data']]:
+        
+        with st.container():
+            st.markdown("---")
+            
+            with st.status("🔄 Procesando transcripción...", expanded=True) as status:
+                
+                try:
+                    # Paso 1: Procesar audio
+                    status.update(label="🎵 Procesando audio...", state="running")
+                    
+                    audio_complete, audio_chunks, audio_metadata = process_audio_data(
+                        st.session_state[state_keys['audio_data']],
+                        st.session_state[state_keys['audio_metadata']].get('mime_type', 'audio/webm')
+                    )
+                    
+                    if not audio_complete:
+                        raise ValueError("Error al procesar el audio")
+                    
+                    # Mostrar información del procesamiento
+                    st.info(f"""
+                    📊 **Audio procesado:**
+                    - Tamaño original: {audio_metadata['original_size'] / (1024*1024):.2f} MB
+                    - Tamaño procesado: {audio_metadata['processed_size'] / (1024*1024):.2f} MB
+                    - Duración: {audio_metadata['duration_ms'] / 1000:.1f} segundos
+                    - Chunks: {audio_metadata['num_chunks'] if audio_metadata['num_chunks'] > 0 else 1}
+                    """)
+                    
+                    # Paso 2: Transcribir
+                    status.update(label="🎯 Transcribiendo audio...", state="running")
+                    
+                    transcriber = WhisperTranscriber(api_key=api_key, base_url=base_url)
+                    
+                    if audio_chunks:
+                        # Transcribir por chunks
+                        st.info(f"📦 Procesando {len(audio_chunks)} segmentos...")
+                        transcription = transcriber.transcribe_with_chunks(
+                            audio_chunks,
+                            language="es",
+                            show_progress=True
+                        )
+                    else:
+                        # Transcribir audio completo
+                        transcription = transcriber.transcribe_chunk(
+                            audio_complete,
+                            language="es"
+                        )
+                    
+                    if not transcription:
+                        raise ValueError("La transcripción está vacía")
+                    
+                    # Paso 3: Generar resumen
+                    status.update(label="📋 Generando resumen clínico...", state="running")
+                    
+                    # Usar las funciones existentes de resumen
+                    summary = resumen_transcripcion(transcription, nota)
+                    
+                    # Intentar segundo resumen si está disponible
+                    try:
+                        summary2 = resumen_transcripcion2(transcription, nota)
+                        if summary2:
+                            final_result = f"{summary}\n\n--- VERSIÓN ALTERNATIVA ---\n\n{summary2}"
+                        else:
+                            final_result = summary
+                    except:
+                        final_result = summary
+                    
+                    # Guardar resultado
+                    st.session_state[state_keys['transcription']] = final_result
+                    
+                    status.update(label="✅ Transcripción completada", state="complete")
+                    st.success("🎉 Proceso completado exitosamente")
+                    
+                except Exception as e:
+                    status.update(label=f"❌ Error: {str(e)}", state="error")
+                    st.error(f"Error durante el procesamiento: {str(e)}")
+                    
+                finally:
+                    st.session_state[state_keys['is_processing']] = False
+                    time.sleep(2)
+                    st.rerun()
+    
+    # Mostrar transcripción si existe
+    if st.session_state[state_keys['transcription']]:
+        st.markdown("---")
+        st.markdown("### 📄 Resultado de la Transcripción")
+        
+        # Opciones de visualización
+        col_view1, col_view2, col_view3 = st.columns([2, 1, 1])
+        
+        with col_view1:
+            view_expanded = st.checkbox("Expandir resultado", value=True)
+        
+        with col_view2:
+            if st.button("📋 Copiar al portapapeles"):
+                st.write("Copiado!")  # En producción, usar JavaScript para copiar
+        
+        with col_view3:
+            # Descargar como archivo
+            st.download_button(
+                "💾 Descargar TXT",
+                st.session_state[state_keys['transcription']],
+                file_name=f"transcripcion_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                mime="text/plain"
+            )
+        
+        # Mostrar transcripción
+        with st.expander("Transcripción y Resumen", expanded=view_expanded):
+            st.text_area(
+                "",
+                st.session_state[state_keys['transcription']],
+                height=400,
+                key=f"display_{nota}_{datetime.now().timestamp()}"
+            )
+    
+    # Estadísticas de sesión
+    with st.sidebar:
+        st.markdown("### 📊 Estado de la Sesión")
+        
+        status_info = {
+            "Audio cargado": "✅" if st.session_state[state_keys['audio_data']] else "❌",
+            "Transcripción": "✅" if st.session_state[state_keys['transcription']] else "❌",
+            "Procesando": "🔄" if st.session_state[state_keys['is_processing']] else "⏸️"
+        }
+        
+        for label, status in status_info.items():
+            st.write(f"{status} {label}")
+    
+    return st.session_state[state_keys['transcription']]
 
 def resumen_paciente(datos):
     model = genai.GenerativeModel('gemini-2.5-flash')
@@ -1181,7 +2116,72 @@ def radio_check(var):
 
 def update_dict(dic,var):
     dic.update({var:'Yes',})
-
+def initialize_audio_system():
+    """
+    Inicializa el sistema de audio y verifica compatibilidad del navegador.
+    """
+    
+    # CSS personalizado para mejorar la UI
+    st.markdown("""
+    <style>
+    /* Estilos para mejorar la visualización en móvil */
+    .stButton > button {
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    .stTextArea > div > div > textarea {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .stColumns > div {
+            margin-bottom: 1rem;
+        }
+    }
+    
+    /* Animación para estado de procesamiento */
+    @keyframes processing {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+    }
+    
+    .processing-indicator {
+        animation: processing 2s ease-in-out infinite;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # JavaScript para verificar compatibilidad
+    components.html("""
+    <script>
+    // Verificar compatibilidad del navegador
+    function checkBrowserCompatibility() {
+        const isCompatible = !!(
+            navigator.mediaDevices &&
+            navigator.mediaDevices.getUserMedia &&
+            window.MediaRecorder
+        );
+        
+        if (!isCompatible) {
+            alert('Tu navegador no es compatible con la grabación de audio. Por favor usa Chrome, Firefox o Safari actualizado.');
+        }
+        
+        // Verificar si es iOS y mostrar instrucciones especiales
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+            console.log('Dispositivo iOS detectado. Asegúrate de permitir el acceso al micrófono.');
+        }
+    }
+    
+    checkBrowserCompatibility();
+    </script>
+    """, height=0)
+    
+    return True
 def id_gen():
     now = datetime.now()
     date_id = now.strftime('%d%m%y%H%M%S')
