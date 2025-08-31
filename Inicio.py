@@ -22,7 +22,6 @@ from app_functions import (
     initialize_audio_system,
     WhisperTranscriber
 )
-from transcription_utils import 
 
 # Al inicio de tu app
 load_dotenv()
