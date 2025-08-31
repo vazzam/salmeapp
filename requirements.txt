@@ -26,4 +26,4 @@ metapub==0.5.12
 python-dotenv==1.1.1
 aiohttp
 backoff
-install python-dotenv
+python-dotenv
