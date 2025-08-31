@@ -900,283 +900,14 @@ import streamlit.components.v1 as components
 import json
 from datetime import datetime
 import hashlib
-
-def audio_recorder_transcriber_v2(
-    nota: str,
-    api_key: str,
-    base_url: str = "https://api.deepinfra.com/v1/openai"
-) -> Optional[str]:
-    """
-    Sistema completo de grabación y transcripción de audio con soporte móvil.
-    
-    Args:
-        nota: Tipo de nota ('primera', 'primera_paido', 'subsecuente')
-        api_key: API key para el servicio de transcripción
-        base_url: URL base de la API
-    
-    Returns:
-        Transcripción procesada o None
-    """
-    
-    # Inicializar session state con keys únicas
-    state_keys = {
-        'audio_data': f'audio_data_{nota}',
-        'audio_metadata': f'audio_metadata_{nota}',
-        'transcription': f'transcription_{nota}',
-        'is_processing': f'is_processing_{nota}',
-        'audio_hash': f'audio_hash_{nota}',
-        'show_recorder': f'show_recorder_{nota}'
-    }
-    
-    # Inicializar estados
-    for key, state_key in state_keys.items():
-        if state_key not in st.session_state:
-            if key in ['is_processing', 'show_recorder']:
-                st.session_state[state_key] = False if key == 'is_processing' else True
-            else:
-                st.session_state[state_key] = None
-    
-    # UI Principal
-    st.markdown("### 🎙️ Sistema de Grabación y Transcripción")
-    
-    # Contenedor para el grabador
-    if st.session_state[state_keys['show_recorder']]:
-        with st.container():
-            # Insertar componente HTML del grabador
-            audio_component = components.html(
-                get_audio_recorder_html(),
-                height=400,
-                scrolling=False
-            )
-    
-    # Sección de controles
-    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
-    
-    with col1:
-        # Simulación de recepción de datos (en producción, usar JavaScript postMessage)
-        uploaded_audio = st.file_uploader(
-            "O sube un archivo de audio",
-            type=['wav', 'mp3', 'webm', 'ogg', 'mp4'],
-            key=f"uploader_{nota}",
-            help="Formatos soportados: WAV, MP3, WebM, OGG, MP4"
-        )
-        
-        if uploaded_audio:
-            audio_bytes = uploaded_audio.read()
-            audio_b64 = base64.b64encode(audio_bytes).decode()
-            
-            # Calcular hash para detectar cambios
-            audio_hash = hashlib.md5(audio_bytes).hexdigest()
-            
-            if audio_hash != st.session_state[state_keys['audio_hash']]:
-                st.session_state[state_keys['audio_data']] = audio_b64
-                st.session_state[state_keys['audio_hash']] = audio_hash
-                st.session_state[state_keys['audio_metadata']] = {
-                    'mime_type': uploaded_audio.type,
-                    'size': len(audio_bytes),
-                    'name': uploaded_audio.name
-                }
-                st.success("✅ Audio cargado correctamente")
-    
-    with col2:
-        if st.button(
-            "🔄 Nuevo Audio",
-            use_container_width=True,
-            disabled=st.session_state[state_keys['is_processing']]
-        ):
-            # Limpiar audio actual
-            st.session_state[state_keys['audio_data']] = None
-            st.session_state[state_keys['audio_metadata']] = None
-            st.session_state[state_keys['audio_hash']] = None
-            st.session_state[state_keys['show_recorder']] = True
-            st.rerun()
-    
-    with col3:
-        # Botón de transcripción
-        can_transcribe = (
-            st.session_state[state_keys['audio_data']] is not None and 
-            not st.session_state[state_keys['is_processing']]
-        )
-        
-        if st.button(
-            "📝 Transcribir",
-            use_container_width=True,
-            disabled=not can_transcribe,
-            type="primary" if can_transcribe else "secondary"
-        ):
-            st.session_state[state_keys['is_processing']] = True
-            st.rerun()
-    
-    with col4:
-        if st.button(
-            "🗑️ Limpiar Todo",
-            use_container_width=True,
-            disabled=st.session_state[state_keys['is_processing']]
-        ):
-            for state_key in state_keys.values():
-                if 'show_recorder' not in state_key:
-                    st.session_state[state_key] = None
-            st.session_state[state_keys['show_recorder']] = True
-            st.success("✅ Limpieza completa")
-            time.sleep(1)
-            st.rerun()
-    
-    # Mostrar información del audio
-    if st.session_state[state_keys['audio_data']] and st.session_state[state_keys['audio_metadata']]:
-        with st.expander("📊 Información del Audio", expanded=True):
-            metadata = st.session_state[state_keys['audio_metadata']]
-            
-            col_info1, col_info2, col_info3 = st.columns(3)
-            with col_info1:
-                size_mb = metadata.get('size', 0) / (1024 * 1024)
-                st.metric("Tamaño", f"{size_mb:.2f} MB")
-            with col_info2:
-                duration = metadata.get('duration', 0)
-                if duration:
-                    st.metric("Duración", f"{duration:.1f} seg")
-            with col_info3:
-                st.metric("Formato", metadata.get('mime_type', 'Unknown'))
-            
-            # Mostrar reproductor
-            if st.session_state[state_keys['audio_data']]:
-                audio_bytes = base64.b64decode(st.session_state[state_keys['audio_data']])
-                st.audio(audio_bytes, format=metadata.get('mime_type', 'audio/wav'))
-    
-    # Proceso de transcripción
-    if st.session_state[state_keys['is_processing']] and st.session_state[state_keys['audio_data']]:
-        
-        with st.container():
-            st.markdown("---")
-            
-            with st.status("🔄 Procesando transcripción...", expanded=True) as status:
-                
-                try:
-                    # Paso 1: Procesar audio
-                    status.update(label="🎵 Procesando audio...", state="running")
-                    
-                    audio_complete, audio_chunks, audio_metadata = process_audio_data(
-                        st.session_state[state_keys['audio_data']],
-                        st.session_state[state_keys['audio_metadata']].get('mime_type', 'audio/webm')
-                    )
-                    
-                    if not audio_complete:
-                        raise ValueError("Error al procesar el audio")
-                    
-                    # Mostrar información del procesamiento
-                    st.info(f"""
-                    📊 **Audio procesado:**
-                    - Tamaño original: {audio_metadata['original_size'] / (1024*1024):.2f} MB
-                    - Tamaño procesado: {audio_metadata['processed_size'] / (1024*1024):.2f} MB
-                    - Duración: {audio_metadata['duration_ms'] / 1000:.1f} segundos
-                    - Chunks: {audio_metadata['num_chunks'] if audio_metadata['num_chunks'] > 0 else 1}
-                    """)
-                    
-                    # Paso 2: Transcribir
-                    status.update(label="🎯 Transcribiendo audio...", state="running")
-                    
-                    transcriber = WhisperTranscriber(api_key=api_key, base_url=base_url)
-                    
-                    if audio_chunks:
-                        # Transcribir por chunks
-                        st.info(f"📦 Procesando {len(audio_chunks)} segmentos...")
-                        transcription = transcriber.transcribe_with_chunks(
-                            audio_chunks,
-                            language="es",
-                            show_progress=True
-                        )
-                    else:
-                        # Transcribir audio completo
-                        transcription = transcriber.transcribe_chunk(
-                            audio_complete,
-                            language="es"
-                        )
-                    
-                    if not transcription:
-                        raise ValueError("La transcripción está vacía")
-                    
-                    # Paso 3: Generar resumen
-                    status.update(label="📋 Generando resumen clínico...", state="running")
-                    
-                    # Usar las funciones existentes de resumen
-                    summary = resumen_transcripcion(transcription, nota)
-                    
-                    # Intentar segundo resumen si está disponible
-                    try:
-                        summary2 = resumen_transcripcion2(transcription, nota)
-                        if summary2:
-                            final_result = f"{summary}\n\n--- VERSIÓN ALTERNATIVA ---\n\n{summary2}"
-                        else:
-                            final_result = summary
-                    except:
-                        final_result = summary
-                    
-                    # Guardar resultado
-                    st.session_state[state_keys['transcription']] = final_result
-                    
-                    status.update(label="✅ Transcripción completada", state="complete")
-                    st.success("🎉 Proceso completado exitosamente")
-                    
-                except Exception as e:
-                    status.update(label=f"❌ Error: {str(e)}", state="error")
-                    st.error(f"Error durante el procesamiento: {str(e)}")
-                    
-                finally:
-                    st.session_state[state_keys['is_processing']] = False
-                    time.sleep(2)
-                    st.rerun()
-    
-    # Mostrar transcripción si existe
-    if st.session_state[state_keys['transcription']]:
-        st.markdown("---")
-        st.markdown("### 📄 Resultado de la Transcripción")
-        
-        # Opciones de visualización
-        col_view1, col_view2, col_view3 = st.columns([2, 1, 1])
-        
-        with col_view1:
-            view_expanded = st.checkbox("Expandir resultado", value=True)
-        
-        with col_view2:
-            if st.button("📋 Copiar al portapapeles"):
-                st.write("Copiado!")  # En producción, usar JavaScript para copiar
-        
-        with col_view3:
-            # Descargar como archivo
-            st.download_button(
-                "💾 Descargar TXT",
-                st.session_state[state_keys['transcription']],
-                file_name=f"transcripcion_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain"
-            )
-        
-        # Mostrar transcripción
-        with st.expander("Transcripción y Resumen", expanded=view_expanded):
-            st.text_area(
-                "",
-                st.session_state[state_keys['transcription']],
-                height=400,
-                key=f"display_{nota}_{datetime.now().timestamp()}"
-            )
-    
-    # Estadísticas de sesión
-    with st.sidebar:
-        st.markdown("### 📊 Estado de la Sesión")
-        
-        status_info = {
-            "Audio cargado": "✅" if st.session_state[state_keys['audio_data']] else "❌",
-            "Transcripción": "✅" if st.session_state[state_keys['transcription']] else "❌",
-            "Procesando": "🔄" if st.session_state[state_keys['is_processing']] else "⏸️"
-        }
-        
-        for label, status in status_info.items():
-            st.write(f"{status} {label}")
-    
-    return st.session_state[state_keys['transcription']]
-    
 import streamlit.components.v1 as components
 import json
 from datetime import datetime
 import hashlib
+import base64
+import tempfile
+import os
+from typing import Optional
 
 def audio_recorder_transcriber_v2(
     nota: str,
@@ -1195,7 +926,7 @@ def audio_recorder_transcriber_v2(
         Transcripción procesada o None
     """
     
-    # Inicializar session state con keys únicas
+    # Inicializar session state con keys únicas y valores por defecto seguros
     state_keys = {
         'audio_data': f'audio_data_{nota}',
         'audio_metadata': f'audio_metadata_{nota}',
@@ -1205,13 +936,24 @@ def audio_recorder_transcriber_v2(
         'show_recorder': f'show_recorder_{nota}'
     }
     
-    # Inicializar estados
-    for key, state_key in state_keys.items():
-        if state_key not in st.session_state:
-            if key in ['is_processing', 'show_recorder']:
-                st.session_state[state_key] = False if key == 'is_processing' else True
-            else:
-                st.session_state[state_key] = None
+    # Inicializar estados con valores por defecto explícitos
+    if state_keys['audio_data'] not in st.session_state:
+        st.session_state[state_keys['audio_data']] = None
+    
+    if state_keys['audio_metadata'] not in st.session_state:
+        st.session_state[state_keys['audio_metadata']] = None
+    
+    if state_keys['transcription'] not in st.session_state:
+        st.session_state[state_keys['transcription']] = None
+    
+    if state_keys['is_processing'] not in st.session_state:
+        st.session_state[state_keys['is_processing']] = False
+    
+    if state_keys['audio_hash'] not in st.session_state:
+        st.session_state[state_keys['audio_hash']] = None
+    
+    if state_keys['show_recorder'] not in st.session_state:
+        st.session_state[state_keys['show_recorder']] = True
     
     # UI Principal
     st.markdown("### 🎙️ Sistema de Grabación y Transcripción")
@@ -1256,10 +998,13 @@ def audio_recorder_transcriber_v2(
                 st.success("✅ Audio cargado correctamente")
     
     with col2:
+        # Asegurar que is_processing es booleano
+        is_processing = bool(st.session_state.get(state_keys['is_processing'], False))
+        
         if st.button(
             "🔄 Nuevo Audio",
             use_container_width=True,
-            disabled=st.session_state[state_keys['is_processing']]
+            disabled=is_processing
         ):
             # Limpiar audio actual
             st.session_state[state_keys['audio_data']] = None
@@ -1269,11 +1014,10 @@ def audio_recorder_transcriber_v2(
             st.rerun()
     
     with col3:
-        # Botón de transcripción
-        can_transcribe = (
-            st.session_state[state_keys['audio_data']] is not None and 
-            not st.session_state[state_keys['is_processing']]
-        )
+        # Verificar condiciones para transcribir de forma segura
+        has_audio = st.session_state.get(state_keys['audio_data']) is not None
+        is_processing = bool(st.session_state.get(state_keys['is_processing'], False))
+        can_transcribe = has_audio and not is_processing
         
         if st.button(
             "📝 Transcribir",
@@ -1285,21 +1029,27 @@ def audio_recorder_transcriber_v2(
             st.rerun()
     
     with col4:
+        # Asegurar que is_processing es booleano
+        is_processing = bool(st.session_state.get(state_keys['is_processing'], False))
+        
         if st.button(
             "🗑️ Limpiar Todo",
             use_container_width=True,
-            disabled=st.session_state[state_keys['is_processing']]
+            disabled=is_processing
         ):
-            for state_key in state_keys.values():
-                if 'show_recorder' not in state_key:
-                    st.session_state[state_key] = None
+            # Limpiar todos los estados excepto show_recorder
+            st.session_state[state_keys['audio_data']] = None
+            st.session_state[state_keys['audio_metadata']] = None
+            st.session_state[state_keys['audio_hash']] = None
+            st.session_state[state_keys['transcription']] = None
+            st.session_state[state_keys['is_processing']] = False
             st.session_state[state_keys['show_recorder']] = True
             st.success("✅ Limpieza completa")
             time.sleep(1)
             st.rerun()
     
     # Mostrar información del audio
-    if st.session_state[state_keys['audio_data']] and st.session_state[state_keys['audio_metadata']]:
+    if st.session_state.get(state_keys['audio_data']) and st.session_state.get(state_keys['audio_metadata']):
         with st.expander("📊 Información del Audio", expanded=True):
             metadata = st.session_state[state_keys['audio_metadata']]
             
@@ -1311,16 +1061,20 @@ def audio_recorder_transcriber_v2(
                 duration = metadata.get('duration', 0)
                 if duration:
                     st.metric("Duración", f"{duration:.1f} seg")
+                else:
+                    st.metric("Duración", "N/A")
             with col_info3:
                 st.metric("Formato", metadata.get('mime_type', 'Unknown'))
             
             # Mostrar reproductor
-            if st.session_state[state_keys['audio_data']]:
+            try:
                 audio_bytes = base64.b64decode(st.session_state[state_keys['audio_data']])
                 st.audio(audio_bytes, format=metadata.get('mime_type', 'audio/wav'))
+            except Exception as e:
+                st.warning(f"No se puede reproducir el audio: {str(e)}")
     
     # Proceso de transcripción
-    if st.session_state[state_keys['is_processing']] and st.session_state[state_keys['audio_data']]:
+    if st.session_state.get(state_keys['is_processing'], False) and st.session_state.get(state_keys['audio_data']):
         
         with st.container():
             st.markdown("---")
@@ -1331,9 +1085,13 @@ def audio_recorder_transcriber_v2(
                     # Paso 1: Procesar audio
                     status.update(label="🎵 Procesando audio...", state="running")
                     
+                    # Obtener metadata de forma segura
+                    audio_metadata_stored = st.session_state.get(state_keys['audio_metadata'], {})
+                    mime_type = audio_metadata_stored.get('mime_type', 'audio/webm')
+                    
                     audio_complete, audio_chunks, audio_metadata = process_audio_data(
                         st.session_state[state_keys['audio_data']],
-                        st.session_state[state_keys['audio_metadata']].get('mime_type', 'audio/webm')
+                        mime_type
                     )
                     
                     if not audio_complete:
@@ -1384,7 +1142,8 @@ def audio_recorder_transcriber_v2(
                             final_result = f"{summary}\n\n--- VERSIÓN ALTERNATIVA ---\n\n{summary2}"
                         else:
                             final_result = summary
-                    except:
+                    except Exception as e:
+                        st.warning(f"No se pudo generar versión alternativa: {str(e)}")
                         final_result = summary
                     
                     # Guardar resultado
@@ -1403,7 +1162,7 @@ def audio_recorder_transcriber_v2(
                     st.rerun()
     
     # Mostrar transcripción si existe
-    if st.session_state[state_keys['transcription']]:
+    if st.session_state.get(state_keys['transcription']):
         st.markdown("---")
         st.markdown("### 📄 Resultado de la Transcripción")
         
@@ -1414,8 +1173,9 @@ def audio_recorder_transcriber_v2(
             view_expanded = st.checkbox("Expandir resultado", value=True)
         
         with col_view2:
-            if st.button("📋 Copiar al portapapeles"):
-                st.write("Copiado!")  # En producción, usar JavaScript para copiar
+            if st.button("📋 Copiar", key=f"copy_btn_{nota}"):
+                # En producción, usar JavaScript para copiar al portapapeles
+                st.info("Usa Ctrl+C para copiar el texto seleccionado")
         
         with col_view3:
             # Descargar como archivo
@@ -1432,23 +1192,30 @@ def audio_recorder_transcriber_v2(
                 "",
                 st.session_state[state_keys['transcription']],
                 height=400,
-                key=f"display_{nota}_{datetime.now().timestamp()}"
+                key=f"display_{nota}"
             )
     
-    # Estadísticas de sesión
-    with st.sidebar:
-        st.markdown("### 📊 Estado de la Sesión")
-        
-        status_info = {
-            "Audio cargado": "✅" if st.session_state[state_keys['audio_data']] else "❌",
-            "Transcripción": "✅" if st.session_state[state_keys['transcription']] else "❌",
-            "Procesando": "🔄" if st.session_state[state_keys['is_processing']] else "⏸️"
-        }
-        
-        for label, status in status_info.items():
-            st.write(f"{status} {label}")
+    # Estadísticas de sesión en sidebar si existe
+    if hasattr(st, 'sidebar'):
+        with st.sidebar:
+            st.markdown("### 📊 Estado de la Sesión")
+            
+            # Verificar estados de forma segura
+            has_audio = "✅" if st.session_state.get(state_keys['audio_data']) else "❌"
+            has_transcription = "✅" if st.session_state.get(state_keys['transcription']) else "❌"
+            is_processing = "🔄" if st.session_state.get(state_keys['is_processing'], False) else "⏸️"
+            
+            status_info = {
+                "Audio cargado": has_audio,
+                "Transcripción": has_transcription,
+                "Procesando": is_processing
+            }
+            
+            for label, status in status_info.items():
+                st.write(f"{status} {label}")
     
-    return st.session_state[state_keys['transcription']]
+    # Retornar la transcripción si existe
+    return st.session_state.get(state_keys['transcription'])
 
 def resumen_paciente(datos):
     model = genai.GenerativeModel('gemini-2.5-flash')
