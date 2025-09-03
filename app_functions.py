@@ -980,7 +980,7 @@ Guías Adicionales
         if key not in st.session_state:
             st.session_state[key] = None
             
-    if st.session_state[ready_key] is None:
+    if ready_key not in st.session_state:
         st.session_state[ready_key] = False
     
     if processing_key not in st.session_state:
