@@ -973,12 +973,16 @@ Guías Adicionales
     processing_key = f"is_processing_{nota}"
     audio_signature_key = f"audio_signature_{nota}"
     last_audio_key = f"last_audio_{nota}"
+    ready_key = f"audio_ready_{nota}"
     
     # Inicializar session state
     for key in [audio_key, transcription_key, audio_signature_key, last_audio_key]:
         if key not in st.session_state:
             st.session_state[key] = None
-
+            
+    if st.session_state[ready_key] is None:
+        st.session_state[ready_key] = False
+    
     if processing_key not in st.session_state:
         st.session_state[processing_key] = False
 
@@ -997,17 +1001,17 @@ Guías Adicionales
         recorder_key = f"mic_recorder_{nota}_{st.session_state['recorder_refresh']}"
         
         audio_value = mic_recorder(
-            start_prompt="🎙️ Iniciar Grabación",
-            stop_prompt="⏹️ Detener Grabación",
-            just_once=False,
-            use_container_width=True,
-            format="webm",
-            key=recorder_key
-        )
+        start_prompt="🎙️ Iniciar Grabación",
+        stop_prompt="⏹️ Detener Grabación",
+        just_once=True, # <- RECOMENDADO
+        use_container_width=True,
+        format="webm",
+        key=recorder_key
+    )
         
         # Detectar nuevo audio o cambios
-        current_audio = None
-        current_signature = None
+        # current_audio = None
+        # current_signature = None
         
         if audio_value and audio_value.get('bytes'):
             time.sleep(1)
@@ -1015,15 +1019,13 @@ Guías Adicionales
             current_signature = get_audio_signature(current_audio)
             
             # Verificar si es un audio nuevo o diferente
-            if (current_signature != st.session_state[audio_signature_key] or 
-                st.session_state[audio_key] is None):
-                
-                st.session_state[audio_key] = current_audio
-                st.session_state[audio_signature_key] = current_signature
-                st.session_state[last_audio_key] = current_audio
+            st.session_state[audio_key] = current_audio
+            st.session_state[audio_signature_key] = current_signature
+            st.session_state[last_audio_key] = current_audio
+            st.session_state[ready_key] = True
                 
                 # Forzar rerun para actualizar la interfaz
-                st.rerun()
+                # st.rerun()
 
     with col2:
         # Botón de refrescar grabador si hay problemas
@@ -1071,34 +1073,43 @@ Guías Adicionales
     
     with col_trans1:
         # Botón de transcripción
-        can_transcribe = (
-            st.session_state[audio_key] is not None and 
-            not st.session_state[processing_key]
-        )
+        # Lógica para habilitar o deshabilitar el botón de transcripción
+        can_transcribe = bool(st.session_state[ready_key]) and not st.session_state[processing_key]
         
+        # Crear una clave única para el botón
+        btn_key = f"btn_trans_{nota}_{st.session_state.get(audio_signature_key, 'noaudio')}"
+        
+        # Configurar y mostrar el botón de transcripción
         if st.button(
-            "🔮 Transcribir Audio", 
+            "🔮 Transcribir Audio",
+            key=btn_key,
             use_container_width=True,
             disabled=not can_transcribe,
             type="primary" if can_transcribe else "secondary"
         ):
+            # Iniciar el proceso solo si hay un audio disponible
             if st.session_state[audio_key]:
                 st.session_state[processing_key] = True
-                
                 try:
+                    # Mostrar un spinner y una barra de progreso mientras se procesa
                     with st.spinner("🔄 Procesando transcripción... Por favor espere."):
                         progress_bar = st.progress(0)
+        
+                        # Paso 1: Preparar el audio
                         progress_bar.progress(25, "Preparando audio...")
-                        
                         audio_io = io.BytesIO(st.session_state[audio_key])
+        
+                        # Paso 2: Enviar a transcripción
                         progress_bar.progress(50, "Enviando a transcripción...")
-                        
                         transcription = transcribe_audio_with_retry(audio_io)
-                        progress_bar.progress(75, "Generando resumen...")
-                        
+        
+                        # Paso 3: Generar el resumen si la transcripción fue exitosa
                         if transcription:
+                            progress_bar.progress(75, "Generando resumen...")
                             processed_result = process_transcription(transcription, nota)
                             st.session_state[transcription_key] = processed_result
+                            
+                            # Finalizar el proceso
                             progress_bar.progress(100, "¡Completado!")
                             time.sleep(1)
                             progress_bar.empty()
@@ -1106,22 +1117,31 @@ Guías Adicionales
                         else:
                             progress_bar.empty()
                             st.error("❌ No se pudo completar la transcripción")
-                
                 except Exception as e:
                     st.error(f"Error durante el procesamiento: {str(e)}")
-                
                 finally:
+                    # Asegurar que el estado de procesamiento se restablezca
                     st.session_state[processing_key] = False
 
     with col_trans2:
         # Botón para limpiar todo
         if st.button("🗑️ Limpiar Todo", use_container_width=True):
+            # Lista de claves de estado a borrar
             keys_to_clear = [audio_key, transcription_key, audio_signature_key, last_audio_key]
+        
+            # Iterar y limpiar las claves
             for key in keys_to_clear:
                 if key in st.session_state:
                     st.session_state[key] = None
+        
+            # Restablecer los estados de control
+            st.session_state[ready_key] = False
             st.session_state[processing_key] = False
+        
+            # Actualizar la clave de refresco del grabador
             st.session_state["recorder_refresh"] += 1
+        
+            # Notificar al usuario y reiniciar la aplicación
             st.success("✅ Todo limpiado")
             time.sleep(1)
             st.rerun()
