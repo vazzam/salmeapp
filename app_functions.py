@@ -112,7 +112,8 @@ client = OpenAI(
 #     resumen = response.text + '---'
 #     return resumen
 
-html_ex = '''<!DOCTYPE html>
+html_ex = '''```html
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -384,7 +385,7 @@ def resumen_paciente(datos):
                                         Si faltan valores entre dos mediciones registradas, la línea debe unir directamente los puntos existentes sin considerar los valores ausentes como 0.
                                         Evita explicaciones adicionales sobre el código html o las gŕaficas generadas.
                                         Usa la siguiente plantilla HTML como base:
-                                        
+                                        {html_ex}
                                         '''
                                     )
     html_code = re.search(r'```html(.*?)```', response.text, re.DOTALL)
