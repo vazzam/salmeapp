@@ -8,6 +8,7 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from openai import OpenAI
 import google.generativeai as genai
+from google.genai import types
 import re
 import threading
 import io
@@ -354,6 +355,7 @@ html_ex = """
 
 def resumen_paciente(datos):
     model = genai.GenerativeModel('gemini-2.5-flash')
+    generation_config = genai.types.GenerationConfig(temperature=0.3)
     response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado,
                                         seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
                                         RESUMEN DE EXPEDIENTE CLÍNICO
@@ -387,7 +389,7 @@ def resumen_paciente(datos):
                                         Evita explicaciones adicionales sobre el código html o las gŕaficas generadas.
                                         Usa la siguiente plantilla HTML como base:
                                         {html_ex}
-                                        '''
+                                        ''', generation_config=generation_config
                                     )
     html_code = re.search(r'```html(.*?)```', response.text, re.DOTALL)
     if html_code:
