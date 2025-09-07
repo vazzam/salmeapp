@@ -8,7 +8,6 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from openai import OpenAI
 import google.generativeai as genai
-from google.genai import types
 import re
 import threading
 import io
