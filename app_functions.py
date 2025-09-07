@@ -112,7 +112,8 @@ client = OpenAI(
 #     resumen = response.text + '---'
 #     return resumen
 
-html_ex = '''```html
+html_ex = """
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -348,7 +349,7 @@ html_ex = '''```html
         });
     </script>
 </body>
-</html>'''
+</html>"""
 
 
 def resumen_paciente(datos):
