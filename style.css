@@ -274,6 +274,22 @@ header {visibility: hidden;}*/
 
 
 
+/* Tema oscuro */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --primary-color: #818cf8;
+        --primary-hover: #a5b4fc;
+        --secondary-color: #34d399;
+        --accent-color: #ffffff;
+        --background-color: #0f172a;
+        --card-bg: #1e293b;
+        --text-color: #f1f5f9;
+        --text-light: #94a3b8;
+        --border-color: #334155;
+        --border-hover: #47556900;
+        --input-bg: #1e293b;
+    }
+}
 
 /* Estilos base */
 html, body, [class*="css"] {
