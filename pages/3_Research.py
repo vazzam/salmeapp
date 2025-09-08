@@ -492,7 +492,7 @@ def extract_text_from_pdf_file(pdf_path: Path) -> str:
         return ""
 
 def generate_summary_with_gemini(text: str, research_question: str) -> str:
-    model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     prompt = f"""
     Como experto en análisis de literatura científica, genera un resumen conciso del siguiente texto, preferentemente y de ser posible
     orientado a responder la pregunta de investigación: '{research_question}'. 
@@ -508,7 +508,7 @@ def generate_summary_with_gemini(text: str, research_question: str) -> str:
         return "No summary available due to processing error."
 
 def generate_full_summary(articles_info_text: str, summaries: List[str], research_question: str) -> str:
-    model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     combined_content = articles_info_text + "\n\n" + "\n\n".join(summaries)
     prompt = f"""
     Actúa como un experto médico en investigación clínica. Con la información de los artículos científicos que te proporciono:
@@ -598,7 +598,7 @@ def main():
 
     if st.button("Iniciar búsqueda") and research_question:
         with st.spinner("Generando consulta con Gemini..."):
-            model = genai.GenerativeModel('gemini-2.5-flash-preview-04-17')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             prompt_terms_pubmed = f'''
             Como especialista en informática biomédica y estrategias de búsqueda en literatura médica:
 
@@ -786,7 +786,7 @@ def main():
     followup_question = st.text_input("Consulta adicional basada en abstracts y textos completos:")
     if st.button("Buscar respuesta adicional"):
         with st.spinner("Generando respuesta..."):
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             combined_content = st.session_state["articles_info_text"] + "\n\n" + "\n\n".join(st.session_state["summaries"])
             prompt_followup = (
                 f"Utilizando la siguiente información de artículos:\n\n{combined_content}\n\n"
