@@ -349,12 +349,12 @@ html_ex = """
         });
     </script>
 </body>
-</html>"""
+</html>```"""
 
 
 def resumen_paciente(datos):
     model = genai.GenerativeModel('gemini-2.5-flash')
-    generation_config = genai.types.GenerationConfig(temperature=0.3)
+    generation_config = genai.types.GenerationConfig(temperature=0.7)
     response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado,
                                         seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
                                         RESUMEN DE EXPEDIENTE CLÍNICO
