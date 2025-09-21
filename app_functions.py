@@ -196,7 +196,7 @@ class TranscriptionService:
         
         return " ".join(transcriptions)
 
-def audio_recorder_transcriber_optimized(nota: str):
+def audio_recorder_transcriber(nota: str):
     """Versión optimizada del grabador y transcriptor de audio"""
     
     # Inicializar servicios
