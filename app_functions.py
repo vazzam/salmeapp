@@ -356,7 +356,7 @@ def audio_recorder_transcriber(nota: str) -> str:
             job_id = start_transcription_job(audio_path, nota)
             st.session_state[job_key] = job_id
             st.info("Transcripción iniciada. Puedes seguir navegando.")
-            st.experimental_rerun()
+            st.rerun()
 
     # Mostrar estado del job si existe
     job_id = st.session_state[job_key]
