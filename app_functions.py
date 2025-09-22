@@ -370,7 +370,7 @@ def audio_recorder_transcriber(nota: str) -> str:
                     st.caption(f"Segmentos: {len(job.segments)}")
                 # Pequeño auto-refresh
                 time.sleep(0.8)
-                st.experimental_rerun()
+                st.rerun()
             elif job.status == "done":
                 st.success("✅ Transcripción completada")
                 st.text_area("Transcripción/Resumen", job.result, height=400, key=f"tr_out_{nota}")
