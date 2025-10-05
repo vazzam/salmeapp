@@ -21,6 +21,8 @@ import time
 import assemblyai as aai
 import pyaudio
 import queue
+import sounddevice as sd
+import numpy as np
 
 RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
@@ -764,60 +766,59 @@ def audio_recorder_transcriber(nota: str):
         )
     
     # Lógica de botones
-    if start_button:
-        st.session_state[is_recording_key] = True
-        st.session_state[full_transcript_key] = ""
-        
-        try:
-            # Configurar el transcriber de AssemblyAI
-            transcriber = aai.RealtimeTranscriber(
-                sample_rate=16_000,
-                on_data=on_data,
-                on_error=on_error,
-                on_open=on_open,
-                on_close=on_close,
-                encoding=aai.AudioEncoding.pcm_s16le
-            )
+        if start_button:
+            st.session_state[is_recording_key] = True
+            st.session_state[full_transcript_key] = ""
             
-            # Conectar al servicio
-            transcriber.connect()
-            st.session_state[streaming_key] = transcriber
-            
-            # Configurar PyAudio para capturar audio del micrófono
-            p = pyaudio.PyAudio()
-            stream = p.open(
-                format=pyaudio.paInt16,
-                channels=1,
-                rate=16_000,
-                input=True,
-                frames_per_buffer=3200
-            )
-            
-            status_placeholder.success("✅ Grabación iniciada - Hable por el micrófono")
-            
-            # Thread para capturar y enviar audio
-            def capture_audio():
-                while st.session_state[is_recording_key]:
+            try:
+                # Configurar el transcriber de AssemblyAI
+                transcriber = aai.RealtimeTranscriber(
+                    sample_rate=16_000,
+                    on_data=on_data,
+                    on_error=on_error,
+                    on_open=on_open,
+                    on_close=on_close,
+                    encoding=aai.AudioEncoding.pcm_s16le
+                )
+                
+                # Conectar al servicio
+                transcriber.connect()
+                st.session_state[streaming_key] = transcriber
+                
+                status_placeholder.success("✅ Grabación iniciada - Hable por el micrófono")
+                
+                # Thread para capturar y enviar audio con sounddevice
+                def capture_audio():
+                    def audio_callback(indata, frames, time, status):
+                        if status:
+                            st.error(f"Error de audio: {status}")
+                        if st.session_state[is_recording_key]:
+                            # Convertir a bytes
+                            audio_bytes = (indata * 32767).astype(np.int16).tobytes()
+                            transcriber.stream(audio_bytes)
+                    
                     try:
-                        data = stream.read(3200, exception_on_overflow=False)
-                        transcriber.stream(data)
+                        with sd.InputStream(
+                            samplerate=16_000,
+                            channels=1,
+                            dtype=np.float32,
+                            callback=audio_callback,
+                            blocksize=3200
+                        ):
+                            while st.session_state[is_recording_key]:
+                                sd.sleep(100)
                     except Exception as e:
                         st.error(f"Error capturando audio: {e}")
-                        break
+                    finally:
+                        transcriber.close()
                 
-                # Limpiar recursos
-                stream.stop_stream()
-                stream.close()
-                p.terminate()
-                transcriber.close()
-            
-            # Iniciar thread de captura
-            audio_thread = threading.Thread(target=capture_audio, daemon=True)
-            audio_thread.start()
-            
-        except Exception as e:
-            st.error(f"Error al iniciar la grabación: {str(e)}")
-            st.session_state[is_recording_key] = False
+                # Iniciar thread de captura
+                audio_thread = threading.Thread(target=capture_audio, daemon=True)
+                audio_thread.start()
+                
+            except Exception as e:
+                st.error(f"Error al iniciar la grabación: {str(e)}")
+                st.session_state[is_recording_key] = False
     
     if stop_button:
         st.session_state[is_recording_key] = False
