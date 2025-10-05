@@ -27,3 +27,5 @@ python-dotenv==1.1.1
 aiohttp
 backoff
 python-dotenv
+assemblyai>=0.17.0
+pyaudio>=0.2.13
