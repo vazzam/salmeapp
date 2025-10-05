@@ -28,5 +28,5 @@ aiohttp
 backoff
 python-dotenv
 assemblyai>=0.17.0
-sounddevice>=0.4.6
+sounddevice
 numpy>=1.24.0
