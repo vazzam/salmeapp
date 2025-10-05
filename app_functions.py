@@ -1,64 +1,30 @@
-# app_functions.py
-# -*- coding: utf-8 -*-
 
-import os
-import io
-import re
-import time
-import uuid
-import json
 import random
-import threading
-import subprocess
-from datetime import datetime
-from pathlib import Path
-from typing import List, Dict, Optional
-
-import requests
+from datetime import date, datetime
 import streamlit as st
-from dotenv import load_dotenv
 from unidecode import unidecode
 from pymongo import MongoClient
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 from openai import OpenAI
 import google.generativeai as genai
-from streamlit_mic_recorder import mic_recorder
-from streamlit.components.v1 import html as st_html
-
-# ==========================
-# Config y constantes
-# ==========================
-load_dotenv()
+import re
+import threading
+import io
+import wave
+from pydub import AudioSegment
+import os
+from dotenv import load_dotenv
+import tempfile
+from pathlib import Path
+import time
+import assemblyai as aai
+import pyaudio
+import queue
 
 RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
 
-MONGODB_URI = os.getenv("MONGODB_URI")
-GEMINI_API = os.getenv("GEMINI_API")
-DEEPINFRA_API = os.getenv("DEEPINFRA_API")
-DEEPINFRA_BASE = "https://api.deepinfra.com/v1/openai"
-
-# Configura Gemini
-if GEMINI_API:
-    genai.configure(api_key=GEMINI_API)
-
-# Cliente OpenAI-compatible (DeepInfra) para chat completions
-openai_client = OpenAI(
-    api_key=DEEPINFRA_API,
-    base_url=DEEPINFRA_BASE,
-)
-
-# Whisper (DeepInfra) vía endpoint OpenAI-compatible (HTTP)
-WHISPER_MODEL = "openai/whisper-large-v3-turbo"
-
-# Límite seguro de tamaño y segmentación
-MAX_FILE_MB = 24.0         # Límite seguro antes de segmentar (API ~25MB)
-SEGMENT_SECONDS = 300      # 5 min por segmento (ajusta si deseas)
-
-# ==========================
-# Utilidades de archivos/audio (ffmpeg/ffprobe)
-# ==========================
 def save_audio_bytes_to_file(audio_bytes: bytes, suffix: str = ".webm") -> Path:
     """Guarda bytes de audio a un archivo en disco con nombre único."""
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
@@ -67,539 +33,60 @@ def save_audio_bytes_to_file(audio_bytes: bytes, suffix: str = ".webm") -> Path:
         f.write(audio_bytes)
     return file_path
 
-def file_size_mb(path: Path) -> float:
-    return path.stat().st_size / (1024 * 1024)
-
-def ffprobe_duration_seconds(path: Path) -> float:
-    """Obtiene duración de audio con ffprobe (rápido, sin decodificar todo)."""
-    cmd = [
-        "ffprobe", "-v", "error", "-show_entries",
-        "format=duration", "-of",
-        "default=noprint_wrappers=1:nokey=1", str(path)
-    ]
-    try:
-        out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-        return float(out.decode().strip())
-    except Exception:
-        return 0.0
-
-def segment_audio_ffmpeg_copy(input_path: Path, segment_seconds: int = SEGMENT_SECONDS) -> List[Path]:
-    """
-    Segmenta sin recodificar (c copy). Ideal para webm/opus.
-    """
-    out_dir = input_path.parent / f"{input_path.stem}_parts"
-    out_dir.mkdir(exist_ok=True)
-    pattern = out_dir / "part_%03d.webm"
-
-    cmd = [
-        "ffmpeg", "-hide_banner", "-y", "-i", str(input_path),
-        "-c", "copy", "-map", "0",
-        "-f", "segment",
-        "-segment_time", str(segment_seconds),
-        "-reset_timestamps", "1",
-        str(pattern)
-    ]
-    subprocess.run(cmd, check=True)
-    parts = sorted(out_dir.glob("part_*.webm"))
-    return parts
-
-def convert_to_wav_ffmpeg(input_path: Path, out_mono_16k: bool = True) -> Path:
-    """
-    Conversión opcional a WAV usando ffmpeg (evitar si la API acepta webm/opus).
-    """
+def convert_to_wav(input_path: Path) -> Path:
+    """Convierte webm/mp3 a wav mono 16kHz usando pydub."""
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_channels(1).set_frame_rate(16000)
     wav_path = input_path.with_suffix(".wav")
-    cmd = ["ffmpeg", "-hide_banner", "-y", "-i", str(input_path)]
-    if out_mono_16k:
-        cmd += ["-ac", "1", "-ar", "16000"]
-    cmd += [str(wav_path)]
-    subprocess.run(cmd, check=True)
+    audio.export(wav_path, format="wav")
     return wav_path
 
-# ==========================
-# DeepInfra Whisper (HTTP)
-# ==========================
-def transcribe_file_deepinfra(file_path: Path, language="es", timeout=(30, 600)) -> str:
-    """
-    Llama al endpoint OpenAI-compatible de DeepInfra con requests,
-    usando archivo desde disco para evitar ocupar RAM.
-    """
-    url = f"{DEEPINFRA_BASE}/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {DEEPINFRA_API}"}
-    data = {"model": WHISPER_MODEL, "language": language}
-    with open(file_path, "rb") as f:
-        files = {"file": (file_path.name, f, "audio/webm")}
-        resp = requests.post(url, headers=headers, data=data, files=files, timeout=timeout)
-    resp.raise_for_status()
-    payload = resp.json()
-    return payload.get("text", "")
+load_dotenv()
+mongodb_uri = os.getenv("MONGODB_URI")
+gemini_api = os.getenv("GEMINI_API")
+deepinfra_api = os.getenv("DEEPINFRA_API")
+assemblyai_api = os.getenv("ASSEMBLYAI_API")  # Nueva variable para AssemblyAI
 
-# ==========================
-# Resumen/LLMs auxiliares
-# ==========================
-def resumen_transcripcion(transcripcion: str, nota: str) -> str:
-    """
-    Versión con Gemini. Requiere GEMINI_API.
-    """
-    model = genai.GenerativeModel('gemini-2.5-flash') if GEMINI_API else None
-    if not model:
-        # Fallback
-        return transcripcion
+genai.configure(api_key=gemini_api)
+aai.settings.api_key = assemblyai_api  # Configurar AssemblyAI
 
-    if nota == "primera":
-        prompt = f"""
-INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. La transcripción es una conversación entre médico y paciente: identifica quién habla en cada intervención para asegurar coherencia.
+# Configurar cliente OpenAI compatible con deepinfra
+openai = OpenAI(
+    api_key=deepinfra_api,
+    base_url="https://api.deepinfra.com/v1/openai",
+)
 
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-    elif nota == "primera_paido":
-        prompt = f"""
-Instrucciones Generales
-Asume el rol de un psiquiatra infantil especializado. Con base en la transcripción de la consulta (médico, paciente y uno de los padres), redacta la evolución detallada. Identifica claramente quién interviene en cada turno.
-
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-    else:
-        prompt = f"""
-INSTRUCCIONES: Asume el rol de un psiquiatra y redacta una nota de evolución entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción. Identifica claramente quién interviene y extrae exclusivamente la información clínica relevante del paciente.
-
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-    response = model.generate_content(prompt)
-    return getattr(response, "text", "") or ""
-
-def resumen_transcripcion2(transcripcion: str, nota: str) -> str:
-    """
-    Versión con modelo adicional vía DeepInfra (OpenAI-compatible).
-    """
-    llm_model = 'Qwen/Qwen3-32B'
-    if nota == "primera":
-        user_content = f"""
-INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento del paciente con base en la transcripción. Distingue interlocutores (médico/paciente) para coherencia.
-
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-    elif nota == "primera_paido":
-        user_content = f"""
-Instrucciones Generales
-Asume el rol de un psiquiatra infantil especializado. Con base en la transcripción (médico, paciente y uno de los padres), redacta la evolución detallada. Identifica claramente quién interviene.
-
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-    else:
-        user_content = f"""
-INSTRUCCIONES: Redacta una nota de evolución entre consulta previa y actual, precisa y concisa, basada en la transcripción. Identifica interlocutores y extrae información clínica relevante.
-
-TEXTO A RESUMIR:
-{transcripcion}
-"""
-
-    resp = openai_client.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    response_text = resp.choices[0].message.content
-    # Limpia tags de pensamiento si existieran
-    response_text = re.sub(r'<think>[\s\S]*?</think>', '', response_text).strip()
-    return response_text
-
-def _process_transcription_text(transcription_text: str, nota: str) -> str:
-    """
-    Aplica los dos resúmenes y concatena resultados.
-    """
-    try:
-        summarized_1 = resumen_transcripcion(transcription_text, nota)
-    except Exception as e:
-        summarized_1 = f"[Resumen 1 falló: {e}]\n{transcription_text}"
-
-    try:
-        summarized_2 = resumen_transcripcion2(transcription_text, nota)
-        return summarized_1 + "\n\n---\nVersión 2:\n" + summarized_2
-    except Exception as e:
-        return summarized_1 + f"\n\n[Resumen 2 falló: {e}]"
-
-# ==========================
-# Job de transcripción en background
-# ==========================
-class TranscriptionJob:
-    def __init__(self, audio_path: Path, nota: str):
-        self.id = uuid.uuid4().hex
-        self.audio_path = audio_path
-        self.nota = nota
-        self.progress = 0.0
-        self.status = "queued"   # queued|running|done|error
-        self.result = ""
-        self.error: Optional[str] = None
-        self.segments: List[str] = []
-
-    def set_progress(self, p: float):
-        self.progress = max(0.0, min(1.0, p))
-
-def run_transcription_job(job: TranscriptionJob):
-    try:
-        job.status = "running"
-
-        size_mb = file_size_mb(job.audio_path)
-        dur = ffprobe_duration_seconds(job.audio_path)
-
-        # Decidir si segmentar
-        if size_mb > MAX_FILE_MB or dur > (SEGMENT_SECONDS + 10):
-            parts = segment_audio_ffmpeg_copy(job.audio_path, SEGMENT_SECONDS)
-        else:
-            parts = [job.audio_path]
-
-        job.segments = [str(p) for p in parts]
-        total = len(parts)
-        texts: List[str] = []
-
-        for idx, part in enumerate(parts, start=1):
-            text = transcribe_file_deepinfra(part)
-            texts.append(text)
-            job.set_progress(idx / total)
-
-        full_text = "\n".join(texts).strip()
-        summarized = _process_transcription_text(full_text, job.nota)
-
-        job.result = summarized
-        job.status = "done"
-        job.set_progress(1.0)
-    except Exception as e:
-        job.error = str(e)
-        job.status = "error"
-        job.set_progress(1.0)
-
-def _jobs_state() -> Dict[str, TranscriptionJob]:
-    if "tr_jobs" not in st.session_state:
-        st.session_state["tr_jobs"] = {}
-    return st.session_state["tr_jobs"]
-
-def start_transcription_job(audio_path: Path, nota: str) -> str:
-    jobs = _jobs_state()
-    job = TranscriptionJob(audio_path, nota)
-    jobs[job.id] = job
-    t = threading.Thread(target=run_transcription_job, args=(job,), daemon=True)
-    t.start()
-    return job.id
-
-def get_job(job_id: str) -> Optional[TranscriptionJob]:
-    return _jobs_state().get(job_id)
-
-# ==========================
-# UI: Grabación + Transcripción (optimizada)
-# ==========================
-def audio_recorder_transcriber(nota: str) -> str:
-    """
-    Grabación y transcripción sin bloquear UI:
-    - Guarda audio a disco (no bytes en session_state).
-    - Muestra duración con ffprobe.
-    - Transcribe en background por segmentos.
-    Devuelve el texto de transcripción/resumen si está listo; de lo contrario ''.
-    """
-    st.subheader("🎙️ Grabación y Transcripción de Audio (optimizada)")
-
-    file_key = f"audio_file_{nota}"
-    job_key = f"tr_job_{nota}"
-
-    if file_key not in st.session_state:
-        st.session_state[file_key] = None
-    if job_key not in st.session_state:
-        st.session_state[job_key] = None
-
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        audio_value = mic_recorder(
-            start_prompt="🎙️ Iniciar Grabación",
-            stop_prompt="⏹️ Detener Grabación",
-            just_once=True,
-            use_container_width=True,
-            format="webm",
-            key=f"mic_{nota}"
-        )
-        if audio_value and audio_value.get("bytes"):
-            audio_path = save_audio_bytes_to_file(audio_value["bytes"], ".webm")
-            st.session_state[file_key] = str(audio_path)
-            st.success(f"✅ Audio guardado: {audio_path.name}")
-
-    with col2:
-        if st.button("🗑️ Limpiar audio", use_container_width=True):
-            st.session_state[file_key] = None
-            st.session_state[job_key] = None
-            st.success("Listo para grabar de nuevo")
-            st.experimental_rerun()
-
-    audio_path_str = st.session_state[file_key]
-    if audio_path_str:
-        audio_path = Path(audio_path_str)
-        size = file_size_mb(audio_path)
-        dur = ffprobe_duration_seconds(audio_path)
-
-        info1, info2, info3 = st.columns(3)
-        with info1:
-            st.metric("Archivo", audio_path.name)
-        with info2:
-            st.metric("Tamaño", f"{size:.2f} MB")
-        with info3:
-            st.metric("Duración", f"{dur/60:.1f} min")
-
-        # Nota: st.audio con lectura desde archivo; evita duplicar bytes en session_state
-        with open(audio_path, "rb") as f:
-            st.audio(f.read(), format="audio/webm")
-
-        if size > MAX_FILE_MB or dur > (SEGMENT_SECONDS + 10):
-            st.warning("⚠️ Audio largo. Se segmentará automáticamente para transcribir de forma robusta.")
-
-        if st.button("🔮 Transcribir (background)", type="primary"):
-            job_id = start_transcription_job(audio_path, nota)
-            st.session_state[job_key] = job_id
-            st.info("Transcripción iniciada. Puedes seguir navegando.")
-            st.rerun()
-
-    # Mostrar estado del job si existe
-    job_id = st.session_state[job_key]
-    if job_id:
-        job = get_job(job_id)
-        if job:
-            if job.status in ("queued", "running"):
-                st.info(f"⏳ Procesando... {int(job.progress*100)}%")
-                st.progress(job.progress)
-                if job.segments:
-                    st.caption(f"Segmentos: {len(job.segments)}")
-                # Pequeño auto-refresh
-                time.sleep(0.8)
-                st.rerun()
-            elif job.status == "done":
-                st.success("✅ Transcripción completada")
-                st.text_area("Transcripción/Resumen", job.result, height=400, key=f"tr_out_{nota}")
-                return job.result
-            else:
-                st.error(f"❌ Error: {job.error}")
-                return ""
-
-    # Debug opcional
-    if st.checkbox("🔧 Modo Debug"):
-        st.write("Estado:")
-        st.write(f"Archivo: {bool(st.session_state[file_key])}")
-        st.write(f"Job: {st.session_state[job_key]}")
-    return ""
-
-
-
-# ==========================
-# Otras utilidades usadas por Inicio.py
-# ==========================
-def rand_ta() -> str:
-    """Genera una TA aleatoria."""
+def rand_ta():
     ta = f'{random.randint(100,130)}/{random.randint(66,78)}'
     return ta
 
-@st.cache_data(show_spinner=False)
-def stored_data(name: str):
+def procesar_texto(texto):
+    patron = r"^```(.*?)```$"
+    coincidencia = re.search(patron, texto, re.DOTALL)
+    return coincidencia.group(1) if coincidencia else texto
+
+def stored_data(name):
     data = {
-        'escalas': [
-            'RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf',
-            'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf',
-            'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf',
-            'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf'
-        ],
-        'gpc': [
-            'SSA-222-09 Diagnostico y tratamiento de la esquizofrenia',
-            'IMSS 170-09 Diagnostico y tratamiento del trastorno bipolar',
-            'IMSS-392-10 Diagnostico y tratamiento del trastorno de ansiedad en el adulto',
-            'APA- Practice guideline for the treatment of patients with borderline personality disorder',
-            'IMSS-161-09 Diagnostico y tratamiento del trastorno depresivo en el adulto',
-            'IMSS-528-12 Diagnostico y manejo de los trastornos del espectro autista',
-            'IMSS-515-11 Diagnostico y manejo del estres post traumatico',
-            'SS-343-16 Diagnostico y tratamiento del consumo de marihuana en adultos en primer y segundo nivel de atención',
-            'SS-023-08 Prevención, detección y consejeria en adicciones para adolescentes y adultos.',
-            'IMSS-385-10 Diagnostico y tratamiento de los trastornos del Sueño',
-            'SS-666-14 Prevención, diagnóstico y manejo de la depresión prenatal',
-            'SS-294-10 Detección y atención de violencia de pareja en adulto',
+            'escalas': ['RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf', 'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf', 'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf', 'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf'],
+            'gpc': ['SSA-222-09 Diagnostico y tratamiento de la esquizofrenia', 'IMSS 170-09 Diagnostico y tratamiento del trastorno bipolar',
+            'IMSS-392-10 Diagnostico y tratamiento del trastorno de ansiedad en el adulto', 'APA- Practice guideline for the treatment of patients with borderline personality disorder',
+            'IMSS-161-09 Diagnostico y tratamiento del trastorno depresivo en el adulto', 'IMSS-528-12 Diagnostico y manejo de los trastornos del espectro autista',
+            'IMSS-515-11 Diagnostico y manejo del estres post traumatico', 'SS-343-16 Diagnostico y tratamiento del consumo de marihuana en adultos en primer y segundo nivel de atención',
+            'SS-023-08 Prevención, detección y consejeria en adicciones para adolescentes y adultos.', 'IMSS-385-10 Diagnostico y tratamiento de los trastornos del Sueño',
+            'SS-666-14 Prevención, diagnóstico y manejo de la depresión prenatal', 'SS-294-10 Detección y atención de violencia de pareja en adulto',
             'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto',
             'IMSS-465-11 Prevención, diagnóstico y tratamiento del DELIRIUM en el adulto mayor hospitalizado'
-        ]
-    }
+            ]
+        }
     return data[name]
 
-def calculate_age(born: datetime) -> int:
-    today = datetime.now()
-    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+client = OpenAI(
+    api_key=deepinfra_api,
+    base_url="https://api.deepinfra.com/v1/openai",
+)
 
-def clin_merge(scale: str) -> str:
-    return f' {scale}, ' if scale != '' else ''
-
-def radio_check(var: str) -> str:
-    return 'Yes' if var != '' else ''
-
-def update_dict(dic: Dict, var: str):
-    dic.update({var: 'Yes',})
-
-def id_gen() -> int:
-    now = datetime.now()
-    date_id = now.strftime('%d%m%y%H%M%S')
-    return int(date_id)
-
-def ensure_index(action: str, collection, index_name: str, index_key: List[tuple]):
-    """
-    Crea o elimina un índice en MongoDB.
-    action: 'create' o 'delete'
-    index_key: lista de tuplas [(campo, orden), ...]
-    """
-    if action == 'create':
-        existing = [idx['name'] for idx in collection.list_indexes()]
-        if index_name not in existing:
-            collection.create_index(index_key, name=index_name)
-            print(f"Created index '{index_name}' on collection '{collection.name}'")
-        else:
-            print(f"Index '{index_name}' already exists on collection '{collection.name}'")
-    else:
-        try:
-            collection.drop_index(index_name)
-            print(f"Index '{index_name}' has been deleted")
-        except Exception as e:
-            print(f"Unable to delete index '{index_name}': {e}")
-
-def search_collection(collection, criteria: Dict, all_info: bool = True):
-    results = []
-    if all_info:
-        for document in collection.find(criteria):
-            results.append(document)
-        return results
-    else:
-        for document in collection.find(criteria, {'_id': 0, 'nombres': 1, 'primer apellido': 1, 'segundo apellido': 1, 'generales.nacimiento.fecha': 1}):
-            results.append(document)
-        return results
-
-def unidecode_except(string: str) -> str:
-    exceptions = ['ñ','1','2','3','4','5','6','7','8','9','0']
-    replaced_string = ''
-    for c in string:
-        if c in exceptions:
-            replaced_string += c
-        else:
-            replaced_string += unidecode(c)
-    return replaced_string
-
-def data_format(field: List[str], val: List[str]) -> Dict:
-    for i in range(len(val)):
-        val[i] = unidecode_except(val[i])
-    temp_ar = {}
-    for i in range(len(field)):
-        temp_ar[field[i]] = {"$regex": val[i], "$options": "i"}
-    return temp_ar
-
-def doc_field(database_name, collection_name: str, filter: Dict, projection: List[str]):
-    db = database_name
-    collection = db[collection_name]
-    documents = collection.find(filter, projection)
-    results = []
-    for document in documents:
-        result = {}
-        for field in projection:
-            result[field] = document[field]
-        results.append(result)
-    return results
-
-def buscar_clientes(nombre: str, apellido_paterno: str, apellido_materno: str):
-    # Conexión rápida ad-hoc (mejor usa mongo_intial y reusa cliente)
-    client = MongoClient(MONGODB_URI) if MONGODB_URI else None
-    if not client:
-        return []
-    db = client['expedinente_electronico']
-    collection = db['pacientes']
-    resultados = collection.find({
-        'nombre': nombre,
-        'apellido_paterno': apellido_paterno,
-        'apellido_materno': apellido_materno
-    }, {
-        '_id': 0,
-        'generales.fecha_nacimiento': 1
-    })
-    out = [r for r in resultados]
-    client.close()
-    return out
-
-def check_ef(var: str) -> str:
-    return var if var != "" else 'sin alteraciones'
-
-def note_show(consultas_previas: int, paciente: List[Dict], nota: str):
-    renglon = '\n'
-    evol = st.expander('CONSULTAS PREVIAS', expanded=True)
-    with evol:
-        fechas_citas = []
-        for i in range(consultas_previas):
-            fechas_citas.insert(0, paciente[0]['consultas'][i]['fecha'])
-        fecha_nota_prev = st.selectbox('Seleccione fecha de citas previas:', fechas_citas)
-        for consulta in paciente[0]["consultas"]:
-            if consulta["fecha"] == fecha_nota_prev:
-                if consulta['fecha'] == fechas_citas[-1]:
-                    st.subheader('Consulta de primera vez')
-                    st.text_area('', nota, height=300)
-                else:
-                    prev_cons = consulta
-                    consulta_anterior = ('##### ' + prev_cons['fecha'] + renglon + renglon +
-                        '> ' + prev_cons['presentacion'].replace('\n', ' ') + renglon + '- ' +
-                        prev_cons['subjetivo'] + renglon + renglon +
-                        '- SOMATOMETRÍA Y SIGNOS VITALES:' + renglon +
-                        'FC: ' + prev_cons['fc'] + ' lpm' + ' | ' +  'FR: ' + prev_cons['fr'] + ' rpm' + ' | ' + 'TA: ' + prev_cons['ta'] + ' mmHg' + ' | ' + ' ------- ' + 'PESO: ' +  str(prev_cons['peso']) + ' ' + 'kg' + '  ' + 'TALLA: ' + str(prev_cons['talla']) + ' ' + 'cm' + renglon + renglon + '- ' +
-                        prev_cons['objetivo'] + renglon + renglon +
-                        'PHQ-9: '+ prev_cons['clinimetrias']['phq9'] + ' ' + ' |   ' +
-                        'GAD-7: '+ prev_cons['clinimetrias']['gad7'] + ' ' + ' |   ' +
-                        'SADPERSONS: '+ prev_cons['clinimetrias']['sadpersons'] + ' ' + ' |   ' +
-                        'YOUNG: '+ prev_cons['clinimetrias']['young'] + ' ' + ' |   ' +
-                        'MDQ: '+ prev_cons['clinimetrias']['mdq'] + ' ' + ' |   ' +
-                        'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
-                        'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +
-                        '##### ' + 'ANÁLISIS: ' + renglon + prev_cons['analisis'] + renglon + renglon +
-                        '##### ' + 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- ')
-                    st.markdown(consulta_anterior)
-    return fechas_citas[-1] if consultas_previas > 0 else None
-
-def last_note(consultas_previas: int, paciente: List[Dict], nota: str):
-    fechas_citas = []
-    for i in range(consultas_previas):
-        fechas_citas.append(paciente[0]['consultas'][i]['fecha'])
-    return (fechas_citas[-1], len(fechas_citas)) if fechas_citas else ("", 0)
-
-def mongo_intial(mongodb_uri: Optional[str]):
-    uri = mongodb_uri or MONGODB_URI
-    client = MongoClient(uri)
-    db = client['expedinente_electronico']  # base de datos
-    pacientes = db['pacientes']             # colección
-    # Índice por nombres y apellidos
-    ensure_index('create', pacientes, 'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo apellido', 1)])
-    return client, pacientes
-
-def mongo_connect(mongodb_uri: Optional[str]):
-    uri = mongodb_uri or MONGODB_URI
-    client = MongoClient(uri)
-    db = client['expedinente_electronico']
-    pacientes = db['pacientes']
-    ensure_index('create', pacientes, 'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo apellido', 1)])
-    return client
-
-def gdrive_up(local_file: str, final_name: str) -> str:
-    gauth = GoogleAuth()
-    scope = [
-        'https://www.googleapis.com/auth/drive',
-        'https://www.googleapis.com/auth/drive.file',
-        'https://www.googleapis.com/auth/drive.appdata'
-    ]
-    gauth.service_account_json = 'service_account.json'
-    drive = GoogleDrive(gauth)
-    gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
-    gfile.SetContentFile(local_file)
-    gfile.Upload()
-    file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
-    return file_url
-
-# ==========================
-# Resumen paciente y chat con expediente (Gemini)
-# ==========================
-HTML_EX = """
+html_ex = """
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -607,152 +94,1672 @@ HTML_EX = """
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Evolución de Escalas Clinimétricas y Peso</title>
     <style>
-        body { background-color: transparent; margin: 0; padding: 40px; font-family: 'Segoe UI', Arial, sans-serif; color: #fff; }
-        .frame { background: linear-gradient(145deg, rgba(44,44,44,0.9), rgba(37,37,37,0.9)); border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); padding: 30px; display: flex; justify-content: space-between; align-items: flex-start; max-width: 2100px; margin: 0 auto; flex-wrap: nowrap; overflow-x: auto; }
-        .chart-container { width: 400px; height: 300px; background: transparent; position: relative; border-radius: 12px; padding: 15px; transition: all 0.3s ease; flex-shrink: 0; }
-        .chart-container:hover { transform: scale(1.02); box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
-        canvas { background: transparent !important; border-radius: 10px; }
-        ::-webkit-scrollbar { height: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(51,51,51,0.5); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(85,85,85,0.7); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(119,119,119,0.9); }
+        body {
+            background-color: transparent;
+            margin: 0;
+            padding: 40px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #fff;
+        }
+        .frame {
+            background: linear-gradient(145deg, rgba(44, 44, 44, 0.9), rgba(37, 37, 37, 0.9));
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            max-width: 2100px;
+            margin: 0 auto;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+        .chart-container {
+            width: 400px;
+            height: 300px;
+            background: transparent;
+            position: relative;
+            border-radius: 12px;
+            padding: 15px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        .chart-container:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        }
+        canvas {
+            background: transparent !important;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar {
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(51, 51, 51, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(85, 85, 85, 0.7);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(119, 119, 119, 0.9);
+        }
     </style>
 </head>
 <body>
     <div class="frame">
-        <div class="chart-container"><canvas id="phq9Chart"></canvas></div>
-        <div class="chart-container"><canvas id="gad7Chart"></canvas></div>
-        <div class="chart-container"><canvas id="gafChart"></canvas></div>
-        <div class="chart-container"><canvas id="mdqChart"></canvas></div>
-        <div class="chart-container"><canvas id="weightChart"></canvas></div>
+        <div class="chart-container">
+            <canvas id="phq9Chart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="gad7Chart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="gafChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="mdqChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="weightChart"></canvas>
+        </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        const chartConfig = {{
+        const chartConfig = {
             type: 'line',
-            options: {{
+            options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {{
-                    x: {{
-                        grid: {{ color: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.2)' }},
-                        ticks: {{ color: '#e0e0e0', font: {{ size: 12, weight: '500' }} }}
-                    }},
-                    y: {{
-                        grid: {{ color: 'rgba(255, 255, 255, 0.05)', borderColor: 'rgba(255, 255, 255, 0.2)' }},
-                        ticks: {{ color: '#e0e0e0', font: {{ size: 12, weight: '500' }} }}
-                    }}
-                }},
-                plugins: {{
-                    legend: {{
-                        labels: {{ color: '#ffffff', font: {{ size: 16, weight: '600' }}, padding: 20, boxWidth: 20, usePointStyle: true }}
-                    }},
-                    tooltip: {{
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(255, 255, 255, 0.2)'
+                        },
+                        ticks: {
+                            color: '#e0e0e0',
+                            font: { size: 12, weight: '500' }
+                        }
+                    },
+                    y: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(255, 255, 255, 0.2)'
+                        },
+                        ticks: {
+                            color: '#e0e0e0',
+                            font: { size: 12, weight: '500' }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff',
+                            font: { size: 16, weight: '600' },
+                            padding: 20,
+                            boxWidth: 20,
+                            usePointStyle: true
+                        }
+                    },
+                    tooltip: {
                         backgroundColor: 'rgba(30, 30, 30, 0.9)',
-                        titleFont: {{ size: 14, weight: '600' }},
-                        bodyFont: {{ size: 12 }},
+                        titleFont: { size: 14, weight: '600' },
+                        bodyFont: { size: 12 },
                         cornerRadius: 10,
                         padding: 12,
                         borderColor: 'rgba(255, 255, 255, 0.1)',
                         borderWidth: 1
-                    }}
-                }},
-                elements: {{
-                    line: {{ tension: 0.5, borderWidth: 3, fill: false, spanGaps: true }},
-                    point: {{ radius: 6, hoverRadius: 9, backgroundColor: '#fff', borderWidth: 2 }}
-                }},
-                animation: {{ duration: 1800, easing: 'easeOutExpo' }}
-            }}
-        }};
-        const data = {{
+                    }
+                },
+                elements: {
+                    line: {
+                        tension: 0.5,
+                        borderWidth: 3,
+                        fill: false,
+                        spanGaps: true
+                    },
+                    point: {
+                        radius: 6,
+                        hoverRadius: 9,
+                        backgroundColor: '#fff',
+                        borderWidth: 2
+                    }
+                },
+                animation: {
+                    duration: 1800,
+                    easing: 'easeOutExpo'
+                }
+            }
+        };
+
+        const data = {
             labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
             phq9: [10, null, 8, null, 6, 5],
             gad7: [8, 9, null, 6, null, 4],
             gaf: [60, null, 65, 70, null, 75],
             mdq: [null, 5, 3, null, 3, 2],
             weight: [70, 71, null, 70, null, 69]
-        }};
-        new Chart(document.getElementById('phq9Chart'), {{
+        };
+
+        new Chart(document.getElementById('phq9Chart'), {
             ...chartConfig,
-            data: {{ labels: data.labels, datasets: [{{ label: 'PHQ-9', data: data.phq9, borderColor: '#ff6b6b', pointBackgroundColor: '#ff6b6b', pointBorderColor: '#fff', backgroundColor: 'transparent' }}] }}
-        }});
-        new Chart(document.getElementById('gad7Chart'), {{
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'PHQ-9',
+                    data: data.phq9,
+                    borderColor: '#ff6b6b',
+                    pointBackgroundColor: '#ff6b6b',
+                    pointBorderColor: '#fff',
+                    backgroundColor: 'transparent'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('gad7Chart'), {
             ...chartConfig,
-            data: {{ labels: data.labels, datasets: [{{ label: 'GAD-7', data: data.gad7, borderColor: '#4ecdc4', pointBackgroundColor: '#4ecdc4', pointBorderColor: '#fff', backgroundColor: 'transparent' }}] }}
-        }});
-        new Chart(document.getElementById('gafChart'), {{
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'GAD-7',
+                    data: data.gad7,
+                    borderColor: '#4ecdc4',
+                    pointBackgroundColor: '#4ecdc4',
+                    pointBorderColor: '#fff',
+                    backgroundColor: 'transparent'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('gafChart'), {
             ...chartConfig,
-            data: {{ labels: data.labels, datasets: [{{ label: 'GAF', data: data.gaf, borderColor: '#45b7d1', pointBackgroundColor: '#45b7d1', pointBorderColor: '#fff', backgroundColor: 'transparent' }}] }}
-        }});
-        new Chart(document.getElementById('mdqChart'), {{
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'GAF',
+                    data: data.gaf,
+                    borderColor: '#45b7d1',
+                    pointBackgroundColor: '#45b7d1',
+                    pointBorderColor: '#fff',
+                    backgroundColor: 'transparent'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('mdqChart'), {
             ...chartConfig,
-            data: {{ labels: data.labels, datasets: [{{ label: 'MDQ', data: data.mdq, borderColor: '#96c93d', pointBackgroundColor: '#96c93d', pointBorderColor: '#fff', backgroundColor: 'transparent' }}] }}
-        }});
-        new Chart(document.getElementById('weightChart'), {{
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'MDQ',
+                    data: data.mdq,
+                    borderColor: '#96c93d',
+                    pointBackgroundColor: '#96c93d',
+                    pointBorderColor: '#fff',
+                    backgroundColor: 'transparent'
+                }]
+            }
+        });
+
+        new Chart(document.getElementById('weightChart'), {
             ...chartConfig,
-            data: {{ labels: data.labels, datasets: [{{ label: 'Peso (kg)', data: data.weight, borderColor: '#ffa502', pointBackgroundColor: '#ffa502', pointBorderColor: '#fff', backgroundColor: 'transparent' }}] }}
-        }});
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Peso (kg)',
+                    data: data.weight,
+                    borderColor: '#ffa502',
+                    pointBackgroundColor: '#ffa502',
+                    pointBorderColor: '#fff',
+                    backgroundColor: 'transparent'
+                }]
+            }
+        });
     </script>
 </body>
-</html>
-"""
+</html>```"""
 
-def resumen_paciente(datos: str):
-    """
-    Genera resumen usando Gemini y extrae, si existe, un bloque HTML de gráficas del texto.
-    Devuelve (resumen_markdown, html_code).
-    """
-    model = genai.GenerativeModel('gemini-2.5-flash') if GEMINI_API else None
-    if not model:
-        return datos, ""  # Fallback
+def resumen_paciente(datos):
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado,
+                                        seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
+                                        RESUMEN DE EXPEDIENTE CLÍNICO
+                                          - Presenta la información en una tabla con las columnas: Fecha, Evolución y síntomas, Hallazgos clínicos, Análisis médico y Tratamiento.
+                                          - Utiliza terminología médica apropiada manteniendo un tono profesional.
+                                          - Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
 
-    prompt = f"""
-INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado,
-seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
+                                          ESTRUCTURA REQUERIDA:
+                                          1. Encabezado: Nombre completo, edad y ocupación del paciente
+                                          2. Motivo de la consulta inicial
+                                          3. Antecedentes médicos relevantes: Historia médica previa significativa para el caso actual
+                                          4. Tabla cronológica de consultas que incluya para cada visita:
+                                          - Fecha exacta
+                                          - Síntomas reportados (con citas textuales del paciente cuando estén disponibles)
+                                          - Resumen muy breve de los hallazgos más relevantes durante la consulta
+                                          - Resumen del análisis médico de la consulta
+                                          - Plan de tratamiento y recomendaciones
+                                          5. Utiliza escritura markdown para resaltar títulos y subtítulos
 
-RESUMEN DE EXPEDIENTE CLÍNICO
-- Presenta la información en una tabla con las columnas: Fecha, Evolución y síntomas, Hallazgos clínicos, Análisis médico y Tratamiento.
-- Utiliza terminología médica apropiada manteniendo un tono profesional.
-- Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
-- Usa markdown para títulos/subtítulos.
+                                          EXPEDIENTE CLÍNICO:
+                                          {datos}
 
-EXPEDIENTE CLÍNICO:
-{datos}
+                                        GRÁFICAS DE CLINIMETRÍAS
 
-GRÁFICAS DE CLINIMETRÍAS
-Si el expediente contiene valores de escalas (GAF, PHQ-9, GAD-7, MDQ, etc.), genera código HTML para visualizar la evolución.
-Solo incluye gráficos con más de 2 valores. La escala debe ir de 0 al máximo. Une puntos existentes (sin 0 en faltantes).
-Usa esta plantilla como base:
-{HTML_EX}
-"""
-    response = model.generate_content(prompt)
-    text = getattr(response, "text", "") or ""
-
-    # Extraer bloque HTML si viene entre fences
-    html_code = ""
-    code_match = re.search(r'```html(.*?)```', text, re.DOTALL | re.IGNORECASE)
-    if code_match:
-        html_code = code_match.group(1).strip()
-        resumen = re.sub(r'```html(.*?)```', '', text, flags=re.DOTALL | re.IGNORECASE).strip()
+                                        Si el expediente contiene valores registrados de escalas de valoración (GAF, PHQ-9, GAD-7, MDQ, etc.),
+                                        genera código HTML para visualizar la evolución de los puntajes de las escalas clinimétricas registradas junto con el peso del paciente.
+                                        Crea una gráfica individual para cada conjunto de valores y muéstralas dentro de un marco que contenga todas las gráficas generadas.
+                                        Solo incluye gráficos de los parámetros con más de 2 valores registrados.
+                                        La escala de cada gráfica debe comenzar en 0 y terminar en el valor máximo de la                                         escala correspondiente.
+                                        Si faltan valores entre dos mediciones registradas, la línea debe unir directamente los puntos existentes sin considerar los valores ausentes como 0.
+                                        Evita explicaciones adicionales sobre el código html o las gráficas generadas.
+                                        Usa la siguiente plantilla HTML como base:
+                                        {html_ex}
+                                        '''
+                                    )
+    html_code = re.search(r'```html(.*?)```', response.text, re.DOTALL)
+    if html_code:
+        html_code = html_code.group(1).strip()
     else:
-        resumen = text
+        html_code = ""
 
-    # Limpia fences markdown residuales
-    resumen = re.sub(r'```markdown(.*?)```', r'\1', resumen, flags=re.DOTALL | re.IGNORECASE).strip()
+    resumen = re.sub(r'```html(.*?)```', '', response.text, flags=re.DOTALL).strip()
+    resumen = re.sub(r'```markdown(.*?)', '', resumen, flags=re.DOTALL).strip()
+
     return resumen, html_code
 
-def chat_expediente(pregunta: str, expediente: str) -> str:
-    model = genai.GenerativeModel('gemini-2.5-flash') if GEMINI_API else None
-    if not model:
-        return ""
-    prompt = f"""
-INSTRUCCIONES: Responde la pregunta sobre el expediente clínico proporcionado en forma breve, precisa y profesional.
+def chat_expediente(pregunta, expediente):
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y responde la pregunta sobre el expediente clínico proporcionado, siguiendo estrictamente la estructura solicitada.
 
-PREGUNTA:
-{pregunta}
+                                        FORMATO:
+                                        - Presenta la información de una forma breve, precisa y concisa con un formato de fácil lectura e interpretación en pocas líneas
+                                        - Utiliza terminología médica apropiada manteniendo un tono profesional.
+                                        PREGUNTA:
+                                        {pregunta}
+                                        EXPEDIENTE CLÍNICO:
+                                        {expediente}'''
+                                    )
+    respuesta = response.text
+    return respuesta
 
-EXPEDIENTE CLÍNICO:
-{expediente}
-"""
+
+# # ==================== NUEVA FUNCIÓN DE STREAMING CON ASSEMBLYAI ====================
+# def audio_recorder_transcriber(nota: str):
+#     """
+#     Función para transcripción en tiempo real usando AssemblyAI Streaming.
+#     """
+    
+#     # Inicializar claves de estado
+#     streaming_key = f"streaming_{nota}"
+#     transcription_key = f"transcripcion_{nota}"
+#     is_recording_key = f"is_recording_{nota}"
+#     full_transcript_key = f"full_transcript_{nota}"
+    
+#     # Inicializar session state
+#     if streaming_key not in st.session_state:
+#         st.session_state[streaming_key] = None
+#     if transcription_key not in st.session_state:
+#         st.session_state[transcription_key] = None
+#     if is_recording_key not in st.session_state:
+#         st.session_state[is_recording_key] = False
+#     if full_transcript_key not in st.session_state:
+#         st.session_state[full_transcript_key] = ""
+    
+#     # Contenedor para mostrar transcripción en tiempo real
+#     transcript_placeholder = st.empty()
+#     status_placeholder = st.empty()
+    
+#     def on_open(session_opened: aai.RealtimeSessionOpened):
+#         """Callback cuando se abre la sesión de streaming"""
+#         status_placeholder.success(f"🎙️ Sesión iniciada - ID: {session_opened.session_id}")
+    
+#     def on_data(transcript: aai.RealtimeTranscript):
+#         """Callback cuando se recibe transcripción parcial o final"""
+#         if not transcript.text:
+#             return
+        
+#         if isinstance(transcript, aai.RealtimeFinalTranscript):
+#             # Transcripción final de un segmento
+#             st.session_state[full_transcript_key] += transcript.text + " "
+#             transcript_placeholder.text_area(
+#                 "📝 Transcripción en tiempo real:",
+#                 st.session_state[full_transcript_key],
+#                 height=300,
+#                 key=f"live_transcript_{nota}"
+#             )
+#         else:
+#             # Transcripción parcial (mientras el usuario habla)
+#             temp_text = st.session_state[full_transcript_key] + transcript.text
+#             transcript_placeholder.text_area(
+#                 "📝 Transcripción en tiempo real:",
+#                 temp_text,
+#                 height=300,
+#                 key=f"live_transcript_temp_{nota}"
+#             )
+    
+#     def on_error(error: aai.RealtimeError):
+#         """Callback cuando ocurre un error"""
+#         st.error(f"❌ Error en streaming: {error}")
+#         st.session_state[is_recording_key] = False
+    
+#     def on_close():
+#         """Callback cuando se cierra la sesión"""
+#         status_placeholder.info("🛑 Sesión de grabación finalizada")
+#         st.session_state[is_recording_key] = False
+    
+#     # Interfaz de usuario
+#     st.subheader("🎙️ Transcripción en Streaming con AssemblyAI")
+    
+#     col1, col2, col3 = st.columns([2, 2, 2])
+    
+#     with col1:
+#         start_button = st.button(
+#             "🎙️ Iniciar Grabación",
+#             disabled=st.session_state[is_recording_key],
+#             use_container_width=True,
+#             type="primary"
+#         )
+    
+#     with col2:
+#         stop_button = st.button(
+#             "⏹️ Detener Grabación",
+#             disabled=not st.session_state[is_recording_key],
+#             use_container_width=True,
+#             type="secondary"
+#         )
+    
+#     with col3:
+#         clear_button = st.button(
+#             "🗑️ Limpiar",
+#             use_container_width=True
+#         )
+    
+#     # Lógica de botones
+#     if start_button:
+#         st.session_state[is_recording_key] = True
+#         st.session_state[full_transcript_key] = ""
+        
+#         try:
+#             # Configurar el transcriber de AssemblyAI
+#             transcriber = aai.RealtimeTranscriber(
+#                 sample_rate=16_000,
+#                 on_data=on_data,
+#                 on_error=on_error,
+#                 on_open=on_open,
+#                 on_close=on_close,
+#                 encoding=aai.AudioEncoding.pcm_s16le
+#             )
+            
+#             # Conectar al servicio
+#             transcriber.connect()
+#             st.session_state[streaming_key] = transcriber
+            
+#             # Configurar PyAudio para capturar audio del micrófono
+#             p = pyaudio.PyAudio()
+#             stream = p.open(
+#                 format=pyaudio.paInt16,
+#                 channels=1,
+#                 rate=16_000,
+#                 input=True,
+#                 frames_per_buffer=3200
+#             )
+            
+#             status_placeholder.success("✅ Grabación iniciada - Hable por el micrófono")
+            
+#             # Thread para capturar y enviar audio
+#             def capture_audio():
+#                 while st.session_state[is_recording_key]:
+#                     try:
+#                         data = stream.read(3200, exception_on_overflow=False)
+#                         transcriber.stream(data)
+#                     except Exception as e:
+#                         st.error(f"Error capturando audio: {e}")
+#                         break
+                
+#                 # Limpiar recursos
+#                 stream.stop_stream()
+#                 stream.close()
+#                 p.terminate()
+#                 transcriber.close()
+            
+#             # Iniciar thread de captura
+#             audio_thread = threading.Thread(target=capture_audio, daemon=True)
+#             audio_thread.start()
+            
+#         except Exception as e:
+#             st.error(f"Error al iniciar la grabación: {str(e)}")
+#             st.session_state[is_recording_key] = False
+    
+#     if stop_button:
+#         st.session_state[is_recording_key] = False
+#         if st.session_state[streaming_key]:
+#             st.session_state[streaming_key].close()
+#             st.session_state[streaming_key] = None
+#         status_placeholder.info("⏹️ Grabación detenida")
+    
+#     if clear_button:
+#         st.session_state[is_recording_key] = False
+#         st.session_state[full_transcript_key] = ""
+#         st.session_state[transcription_key] = None
+#         if st.session_state[streaming_key]:
+#             st.session_state[streaming_key].close()
+#             st.session_state[streaming_key] = None
+#         transcript_placeholder.empty()
+#         status_placeholder.empty()
+#         st.success("✅ Transcripción limpiada")
+    
+#     # Mostrar estado actual
+#     if st.session_state[is_recording_key]:
+#         st.info("🔴 Grabando... Hable claramente hacia el micrófono")
+    
+#     # Mostrar transcripción acumulada
+#     if st.session_state[full_transcript_key]:
+#         st.divider()
+        
+#         col_process1, col_process2 = st.columns([3, 1])
+        
+#         with col_process1:
+#             process_button = st.button(
+#                 "🔮 Procesar con LLM",
+#                 use_container_width=True,
+#                 type="primary",
+#                 disabled=st.session_state[is_recording_key]
+#             )
+        
+#         with col_process2:
+#             copy_button = st.button(
+#                 "📋 Copiar",
+#                 use_container_width=True
+#             )
+        
+#         if process_button and st.session_state[full_transcript_key]:
+#             with st.spinner("🤖 Procesando transcripción con IA..."):
+#                 try:
+#                     # Enviar a DeepInfra para procesamiento
+#                     processed_text = process_transcription_with_llm(
+#                         st.session_state[full_transcript_key],
+#                         nota
+#                     )
+#                     st.session_state[transcription_key] = processed_text
+#                     st.success("✅ Transcripción procesada exitosamente")
+                    
+#                 except Exception as e:
+#                     st.error(f"Error al procesar con LLM: {str(e)}")
+        
+#         if copy_button:
+#             st.code(st.session_state[full_transcript_key], language=None)
+    
+#     # Mostrar resultado procesado
+#     if st.session_state[transcription_key]:
+#         st.divider()
+#         st.subheader("📄 Resultado Procesado por IA")
+#         with st.expander("Ver resultado completo", expanded=True):
+#             st.text_area(
+#                 "Nota Clínica Procesada:",
+#                 st.session_state[transcription_key],
+#                 height=400,
+#                 key=f"processed_result_{nota}"
+#             )
+    
+#     return st.session_state[transcription_key]
+
+
+def process_transcription_with_llm(transcription_text: str, nota: str, use_gemini: bool = True):
+    """
+    Procesa la transcripción usando el modelo LLM de DeepInfra o Gemini.
+    
+    Args:
+        transcription_text: Texto de la transcripción a procesar
+        nota: Tipo de nota ('primera', 'primera_paido', o 'subsecuente')
+        use_gemini: Si True usa Gemini, si False usa DeepInfra
+    
+    Returns:
+        Texto procesado por el modelo LLM
+    """
+    
+    # Definir el prompt según el tipo de nota
+    if nota == "primera":
+        prompt = """Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
+        
+TRANSCRIPCIÓN:
+{transcription}"""
+    
+    elif nota == 'primera_paido':
+        prompt = """Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
+
+TRANSCRIPCIÓN:
+{transcription}"""
+    
+    else:
+        prompt = """Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
+
+TRANSCRIPCIÓN:
+{transcription}"""
+    
+    try:
+        if use_gemini:
+            # Usar Gemini
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt.format(transcription=transcription_text))
+            result = response.text
+            
+        else:
+            # Usar DeepInfra con modelo Qwen
+            response = openai.chat.completions.create(
+                model='Qwen/Qwen3-32B',
+                messages=[
+                    {"role": "user", "content": prompt.format(transcription=transcription_text)}
+                ],
+                temperature=0.7,
+                max_tokens=4000
+            )
+            
+            result = response.choices[0].message.content
+            # Limpiar tags de pensamiento si existen
+            result = re.sub(r'<think>[\s\S]*?</think>', '', result).strip()
+        
+        return result
+        
+    except Exception as e:
+        st.error(f"Error al procesar con LLM: {str(e)}")
+        return transcription_text
+
+
+def audio_recorder_transcriber(nota: str):
+    """
+    Función para transcripción en tiempo real usando AssemblyAI Streaming.
+    """
+    
+    # Inicializar claves de estado
+    streaming_key = f"streaming_{nota}"
+    transcription_key = f"transcripcion_{nota}"
+    is_recording_key = f"is_recording_{nota}"
+    full_transcript_key = f"full_transcript_{nota}"
+    llm_choice_key = f"llm_choice_{nota}"
+    
+    # Inicializar session state
+    if streaming_key not in st.session_state:
+        st.session_state[streaming_key] = None
+    if transcription_key not in st.session_state:
+        st.session_state[transcription_key] = None
+    if is_recording_key not in st.session_state:
+        st.session_state[is_recording_key] = False
+    if full_transcript_key not in st.session_state:
+        st.session_state[full_transcript_key] = ""
+    if llm_choice_key not in st.session_state:
+        st.session_state[llm_choice_key] = "Gemini"  # Valor por defecto
+    
+    # Contenedor para mostrar transcripción en tiempo real
+    transcript_placeholder = st.empty()
+    status_placeholder = st.empty()
+    
+    def on_open(session_opened: aai.RealtimeSessionOpened):
+        """Callback cuando se abre la sesión de streaming"""
+        status_placeholder.success(f"🎙️ Sesión iniciada - ID: {session_opened.session_id}")
+    
+    def on_data(transcript: aai.RealtimeTranscript):
+        """Callback cuando se recibe transcripción parcial o final"""
+        if not transcript.text:
+            return
+        
+        if isinstance(transcript, aai.RealtimeFinalTranscript):
+            # Transcripción final de un segmento
+            st.session_state[full_transcript_key] += transcript.text + " "
+            transcript_placeholder.text_area(
+                "📝 Transcripción en tiempo real:",
+                st.session_state[full_transcript_key],
+                height=300,
+                key=f"live_transcript_{nota}_{len(st.session_state[full_transcript_key])}"
+            )
+        else:
+            # Transcripción parcial (mientras el usuario habla)
+            temp_text = st.session_state[full_transcript_key] + transcript.text
+            transcript_placeholder.text_area(
+                "📝 Transcripción en tiempo real:",
+                temp_text,
+                height=300,
+                key=f"live_transcript_temp_{nota}_{len(temp_text)}"
+            )
+    
+    def on_error(error: aai.RealtimeError):
+        """Callback cuando ocurre un error"""
+        st.error(f"❌ Error en streaming: {error}")
+        st.session_state[is_recording_key] = False
+    
+    def on_close():
+        """Callback cuando se cierra la sesión"""
+        status_placeholder.info("🛑 Sesión de grabación finalizada")
+        st.session_state[is_recording_key] = False
+    
+    # Interfaz de usuario
+    st.subheader("🎙️ Transcripción en Streaming con AssemblyAI")
+    
+    col1, col2, col3 = st.columns([2, 2, 2])
+    
+    with col1:
+        start_button = st.button(
+            "🎙️ Iniciar Grabación",
+            disabled=st.session_state[is_recording_key],
+            use_container_width=True,
+            type="primary"
+        )
+    
+    with col2:
+        stop_button = st.button(
+            "⏹️ Detener Grabación",
+            disabled=not st.session_state[is_recording_key],
+            use_container_width=True,
+            type="secondary"
+        )
+    
+    with col3:
+        clear_button = st.button(
+            "🗑️ Limpiar",
+            use_container_width=True
+        )
+    
+    # Lógica de botones
+    if start_button:
+        st.session_state[is_recording_key] = True
+        st.session_state[full_transcript_key] = ""
+        
+        try:
+            # Configurar el transcriber de AssemblyAI
+            transcriber = aai.RealtimeTranscriber(
+                sample_rate=16_000,
+                on_data=on_data,
+                on_error=on_error,
+                on_open=on_open,
+                on_close=on_close,
+                encoding=aai.AudioEncoding.pcm_s16le
+            )
+            
+            # Conectar al servicio
+            transcriber.connect()
+            st.session_state[streaming_key] = transcriber
+            
+            # Configurar PyAudio para capturar audio del micrófono
+            p = pyaudio.PyAudio()
+            stream = p.open(
+                format=pyaudio.paInt16,
+                channels=1,
+                rate=16_000,
+                input=True,
+                frames_per_buffer=3200
+            )
+            
+            status_placeholder.success("✅ Grabación iniciada - Hable por el micrófono")
+            
+            # Thread para capturar y enviar audio
+            def capture_audio():
+                while st.session_state[is_recording_key]:
+                    try:
+                        data = stream.read(3200, exception_on_overflow=False)
+                        transcriber.stream(data)
+                    except Exception as e:
+                        st.error(f"Error capturando audio: {e}")
+                        break
+                
+                # Limpiar recursos
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                transcriber.close()
+            
+            # Iniciar thread de captura
+            audio_thread = threading.Thread(target=capture_audio, daemon=True)
+            audio_thread.start()
+            
+        except Exception as e:
+            st.error(f"Error al iniciar la grabación: {str(e)}")
+            st.session_state[is_recording_key] = False
+    
+    if stop_button:
+        st.session_state[is_recording_key] = False
+        if st.session_state[streaming_key]:
+            st.session_state[streaming_key].close()
+            st.session_state[streaming_key] = None
+        status_placeholder.info("⏹️ Grabación detenida")
+    
+    if clear_button:
+        st.session_state[is_recording_key] = False
+        st.session_state[full_transcript_key] = ""
+        st.session_state[transcription_key] = None
+        if st.session_state[streaming_key]:
+            st.session_state[streaming_key].close()
+            st.session_state[streaming_key] = None
+        transcript_placeholder.empty()
+        status_placeholder.empty()
+        st.success("✅ Transcripción limpiada")
+        time.sleep(0.5)
+        st.rerun()
+    
+    # Mostrar estado actual
+    if st.session_state[is_recording_key]:
+        st.info("🔴 Grabando... Hable claramente hacia el micrófono")
+    
+    # Mostrar transcripción acumulada
+    if st.session_state[full_transcript_key]:
+        st.divider()
+        
+        # Selector de modelo LLM
+        st.subheader("🤖 Seleccionar Modelo para Procesamiento")
+        
+        col_model1, col_model2 = st.columns([2, 2])
+        
+        with col_model1:
+            llm_option = st.radio(
+                "Elige el modelo de IA:",
+                options=["Gemini", "DeepInfra (Qwen)"],
+                index=0 if st.session_state[llm_choice_key] == "Gemini" else 1,
+                horizontal=True,
+                key=f"llm_radio_{nota}"
+            )
+            st.session_state[llm_choice_key] = llm_option
+        
+        with col_model2:
+            st.info(
+                "**Gemini**: Rápido y preciso\n\n"
+                "**DeepInfra**: Alternativa potente"
+            )
+        
+        st.divider()
+        
+        col_process1, col_process2, col_process3 = st.columns([2, 2, 1])
+        
+        with col_process1:
+            process_button = st.button(
+                f"🔮 Procesar con {st.session_state[llm_choice_key]}",
+                use_container_width=True,
+                type="primary",
+                disabled=st.session_state[is_recording_key]
+            )
+        
+        with col_process2:
+            # Botón para procesar con ambos modelos
+            process_both_button = st.button(
+                "🔄 Procesar con Ambos",
+                use_container_width=True,
+                disabled=st.session_state[is_recording_key],
+                help="Genera dos versiones: una con Gemini y otra con DeepInfra"
+            )
+        
+        with col_process3:
+            copy_button = st.button(
+                "📋 Copiar",
+                use_container_width=True
+            )
+        
+        if process_button and st.session_state[full_transcript_key]:
+            use_gemini = st.session_state[llm_choice_key] == "Gemini"
+            model_name = "Gemini 2.5 Flash" if use_gemini else "Qwen 3-32B"
+            
+            with st.spinner(f"🤖 Procesando transcripción con {model_name}..."):
+                try:
+                    processed_text = process_transcription_with_llm(
+                        st.session_state[full_transcript_key],
+                        nota,
+                        use_gemini=use_gemini
+                    )
+                    st.session_state[transcription_key] = processed_text
+                    st.success(f"✅ Transcripción procesada exitosamente con {model_name}")
+                    
+                except Exception as e:
+                    st.error(f"Error al procesar con {model_name}: {str(e)}")
+        
+        if process_both_button and st.session_state[full_transcript_key]:
+            with st.spinner("🤖 Procesando con ambos modelos..."):
+                progress_bar = st.progress(0)
+                results = {}
+                
+                try:
+                    # Procesar con Gemini
+                    progress_bar.progress(25, "Procesando con Gemini...")
+                    gemini_result = process_transcription_with_llm(
+                        st.session_state[full_transcript_key],
+                        nota,
+                        use_gemini=True
+                    )
+                    results['Gemini'] = gemini_result
+                    
+                    progress_bar.progress(50, "Procesando con DeepInfra...")
+                    # Procesar con DeepInfra
+                    deepinfra_result = process_transcription_with_llm(
+                        st.session_state[full_transcript_key],
+                        nota,
+                        use_gemini=False
+                    )
+                    results['DeepInfra'] = deepinfra_result
+                    
+                    progress_bar.progress(100, "¡Completado!")
+                    time.sleep(0.5)
+                    progress_bar.empty()
+                    
+                    # Combinar resultados
+                    combined_result = (
+                        f"### 🟢 VERSIÓN GEMINI:\n\n{gemini_result}\n\n"
+                        f"---\n\n"
+                        f"### 🔵 VERSIÓN DEEPINFRA (Qwen):\n\n{deepinfra_result}"
+                    )
+                    
+                    st.session_state[transcription_key] = combined_result
+                    st.success("✅ Transcripción procesada con ambos modelos")
+                    
+                except Exception as e:
+                    progress_bar.empty()
+                    st.error(f"Error al procesar: {str(e)}")
+        
+        if copy_button:
+            st.code(st.session_state[full_transcript_key], language=None)
+    
+    # Mostrar resultado procesado
+    if st.session_state[transcription_key]:
+        st.divider()
+        st.subheader("📄 Resultado Procesado por IA")
+        
+        # Detectar si hay resultados de ambos modelos
+        if "VERSIÓN GEMINI:" in st.session_state[transcription_key] and "VERSIÓN DEEPINFRA" in st.session_state[transcription_key]:
+            # Mostrar en tabs si hay dos versiones
+            tab1, tab2 = st.tabs(["🟢 Versión Gemini", "🔵 Versión DeepInfra"])
+            
+            # Separar las versiones
+            parts = st.session_state[transcription_key].split("---")
+            gemini_part = parts[0].replace("### 🟢 VERSIÓN GEMINI:", "").strip()
+            deepinfra_part = parts[1].replace("### 🔵 VERSIÓN DEEPINFRA (Qwen):", "").strip() if len(parts) > 1 else ""
+            
+            with tab1:
+                st.markdown("**Procesado con Gemini 2.5 Flash**")
+                st.text_area(
+                    "Nota Clínica - Gemini:",
+                    gemini_part,
+                    height=400,
+                    key=f"gemini_result_{nota}"
+                )
+                if st.button("📋 Copiar Versión Gemini", key=f"copy_gemini_{nota}"):
+                    st.code(gemini_part, language=None)
+            
+            with tab2:
+                st.markdown("**Procesado con DeepInfra (Qwen 3-32B)**")
+                st.text_area(
+                    "Nota Clínica - DeepInfra:",
+                    deepinfra_part,
+                    height=400,
+                    key=f"deepinfra_result_{nota}"
+                )
+                if st.button("📋 Copiar Versión DeepInfra", key=f"copy_deepinfra_{nota}"):
+                    st.code(deepinfra_part, language=None)
+        else:
+            # Mostrar resultado único
+            with st.expander("Ver resultado completo", expanded=True):
+                st.text_area(
+                    "Nota Clínica Procesada:",
+                    st.session_state[transcription_key],
+                    height=400,
+                    key=f"processed_result_{nota}"
+                )
+                
+                col_export1, col_export2 = st.columns(2)
+                
+                with col_export1:
+                    if st.button("📋 Copiar Texto", key=f"copy_single_{nota}"):
+                        st.code(st.session_state[transcription_key], language=None)
+                
+                with col_export2:
+                    # Botón para descargar como archivo
+                    if st.download_button(
+                        label="💾 Descargar TXT",
+                        data=st.session_state[transcription_key],
+                        file_name=f"nota_clinica_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        key=f"download_{nota}"
+                    ):
+                        st.success("✅ Archivo descargado")
+    
+    # Información adicional en sidebar
+    with st.sidebar:
+        st.divider()
+        st.subheader("ℹ️ Información de Streaming")
+        
+        if st.session_state[full_transcript_key]:
+            word_count = len(st.session_state[full_transcript_key].split())
+            char_count = len(st.session_state[full_transcript_key])
+            
+            col_stat1, col_stat2 = st.columns(2)
+            with col_stat1:
+                st.metric("Palabras", word_count)
+            with col_stat2:
+                st.metric("Caracteres", char_count)
+            
+            # Estimación de tiempo de lectura
+            reading_time = max(1, word_count // 200)  # ~200 palabras por minuto
+            st.info(f"⏱️ Tiempo de lectura: ~{reading_time} min")
+        else:
+            st.info("No hay transcripción activa")
+        
+        # Estado de la grabación
+        if st.session_state[is_recording_key]:
+            st.success("🔴 GRABANDO")
+        else:
+            st.info("⚪ DETENIDO")
+    
+    return st.session_state[transcription_key]
+
+
+# Función alternativa que mantiene compatibilidad con código anterior
+def resumen_transcripcion_gemini(transcripcion, nota):
+    """
+    Función de compatibilidad que usa Gemini directamente.
+    Mantiene la interfaz original para código legacy.
+    """
+    model = genai.GenerativeModel('gemini-2.5-flash')
+    
+    if nota == "primera":
+        prompt = f'''
+                INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
+
+                OBJETIVO: Redactar la evolución del padecimiento del paciente, desde su inicio hasta el estado actual, integrando únicamente la información clínica relevante extraída de las intervenciones del paciente durante la consulta.
+
+                FORMATO REQUERIDO:
+                - Idioma español
+                - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea
+                - Extensión de entre 300 a 600 palabras según lo amerite el caso
+                - Lenguaje técnico apropiado para documentación clínica
+                - Escrito en tercera persona
+
+                INCLUIR:
+                - Antecedentes relevantes del padecimiento
+                - Cronología detallada de síntomas y manifestaciones
+                - Cambios en la severidad e intensidad a lo largo del tiempo
+                - Factores desencadenantes o exacerbantes identificados
+                - Estado actual del paciente
+
+                OMITIR:
+                - Toda información que no corresponda a la evolución del padecimiento del paciente, incluyendo sugerencias terapéuticas realizadas o propuestas durante la consulta
+                - Información personal no relevante para la evolución
+                - Recomendaciones o plan de tratamiento
+                - Juicios de valor
+                - Diagnósticos
+                - Análisis sobre el caso
+                - Resúmenes al final del texto
+
+                IMPORTANTE: Dado que la transcripción incluye tanto preguntas del médico como respuestas del paciente, considera únicamente los fragmentos en los que el paciente describe su experiencia subjetiva. Ignora las intervenciones del médico excepto cuando sirvan para contextualizar una respuesta del paciente.
+
+                ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS A CONTINUACIÓN:
+
+                        Ejemplo 1:
+                        “Cuadro actual de aproximadamente 11 meses de evolución, de inicio insidioso, curso continuo y tendiente al empeoramiento, en el contexto de un trastorno depresivo recurrente que evoluciona hacia un trastorno depresivo persistente, desencadenado por conflictos en la relación con el padre de su hijo y agravado por dependencia emocional, aislamiento social y dificultades económicas.
+                        Por interrogatorio directo, la paciente refiere que desde entonces comenzó con estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con pérdida del interés por actividades que previamente disfrutaba dejando de arreglarse, maquillarse y salir con amigas. Presenta hiporexia con pérdida de 8 kg en aproximadamente 7 meses con fluctuaciones en el peso; hay insomnio mixto con múltiples despertares para verificar a su hijo. Se agregaron problemas de concentración con olvidos frecuentes incluyendo la administración de medicamentos, enlentecimiento psicomotriz y fatiga.
+
+                        Hay pensamientos persistentes de culpa relacionados con su embarazo y la percepción de "decepcionar" a sus padres, así como ideas de minusvalía "no sirvo para nada", "soy una mantenida", "les he fallado". Se añadieron pensamientos pasivos de muerte "sería mejor no estar" aunque sin ideación suicida estructurada. Presenta ansiedad con predominio de pensamientos catastróficos en relación a su familia, cefalea tipo migraña y estreñimiento.
+
+                        Hace aproximadamente 6 meses inició tratamiento con duloxetina 60mg/día notando mejoría parcial de síntomas aunque sin remisión completa. Hace un mes, tras descubrir una presunta infidelidad de su expareja, presenta exacerbación de síntomas depresivos con deterioro en autocuidado llegando a espaciar el baño hasta por una semana, mayor aislamiento social y inicio de consumo diario de alcohol (3 cervezas) como mecanismo de afrontamiento.
+
+                        Los síntomas han impactado significativamente en su funcionalidad, presentando deterioro en el autocuidado, dificultad para realizar las actividades de rehabilitación de su hijo y aislamiento social. Por lo anterior y el aumento de los síntomas ansiosos así como la perdida de motivación que decide acudir a consulta.”
+
+                        Ejemplo 2:
+                        “En el contexto de una historia de múltiples episodios depresivos, inicia su padecimiento actual en abril 2023 de forma insidiosa, continua y tendiente al empeoramiento sin un desencadenante aparente y agravado por deprivación académica, dificultades económicas, conflictos de pareja. Según refiere, desde entonces, comenzó con un estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con perdida del interés por actividades que previamente daban placer dejándo de disfrutar sus actividades del día dejándo de asear su casa y descuidando su autocuidado. A lo anterior se añadieron hiporexia con perdida de entre 6 y 7 kg en 6 messes; hay insomnio mixto con latencia de conciliación de unas 2 horasy al menos 3 despertares; dificultades para la concentración con perdida de objetos y dificultad para mantener el hilo de conversaciones; enlentecimiento psicomotriz. Ha notado la presencia de pensamientos de culpa, minusvalía y pasivos de muerte "me siento insuficiente... siento que no le intereso a nadie, me rechazan y he pensado en mejor desaparecer [sic paciente]". A lo anterior se añadieron ansiedad flotante, nerviosísmo, cervicodorsalgia, aislamiento y episodios de pánico con sensación de ahogo, malestar torácico y síntomas vegetativos de 10-15 minutos de duración y que han ido incrementado en frecuencia de 1-2 / semana a 1-2 por día. Refiere que de junio a agosto presentó acoasmas fugaces con impacto en ánimo incrementando síntomas de ansiedad. En este contexto hace 1 mes, tras discutir con su madre, de forma impulsiva y con intención suicida, tomó unos 7ml de solución de clonazepam 2.5mg/ml sin necesidad de manejo intrahospitalario. Por lo anterior fue valorada hace 10 días en CEB en donde prescribieron fluoxetina con mejoría subjetiva referidade 10%. Por lo anterior es que decide acudir a valoración.”
+
+                        Ejemplo 4:
+                        “El episodio actual se da en el contexto de un patrón de conducta de inicio en la adolescencia tardía, persistentemente desadaptativo e inflexible caracterizado por sensación de vacío crónico, inestabilidad en la relaciones interpesonales y de emociones  con consecuentes conflictos con los padres y parejas; miedo al abandono que le ha condicionado mantenerse en una relación marcada por la violencia; ideas sobrevaloradas referenciales y distorsiones de la autoimagen; también ha presentado pobre tolerancia a la frustración que le conicionaron episodios de desregulación emociona con la presencia de ira desporporcionada e ipmulsividad que le generan conducta autolesivas como método de afrontamiento (cutting) y reactivación de pensamientos de muerte. Padecimiento de alrededor de 9 meses de inicio insidioso, continuo y tendiente al empeoramiento desencadenado por la muerte de la abuela y agravado por desempleo y separación del conyuge. Desde entonces ha presentado un estado de ánimo persistentemente triste, tendiente al llanto espontáneo; insomnio de inicio con latencia de conciliación de hasta 4 horas en asociación a rumiaciones entorno a su situación de pareja;  enlentecimiento psicomotor, problemas para la concentración con múltipls olvidos; hiporexia con perdida de 15 kg en un par de meses; además ha prsentado pensamientos de culpa, minusvalía y pasivos de muerte "Es mi culpa que me haya tratado así, me he fallado... a veces he pensado en no querer depesrtar pero pienso en mis hijos y pasa [sic]". De forma paralela ha presentado ansiedad flotante, cervicodorsalgia, nerviosísmo, inquietud motriz y paroxismos de exacerbación síntomas que se acompañan de descarga adrenérgica con sensación de muerte o perder el control. Hace 2 días, de forma impulsiva, tras ver su expareja con otra persona, presentó tentativa suicida abortada mediante flebotomía "me detienen mis hijos... fue el impuso en ese rato [sic]”
+
+                        TEXTO A RESUMIR:
+                        {transcripcion}'''
+    
+    elif nota == 'primera_paido':
+        prompt = f'''
+
+Instrucciones Generales
+Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
+
+Objetivo Principal
+Elaborar un informe preciso y conciso que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
+
+Requisitos del Formato de la Respuesta
+- Idioma: Español México.
+- Estilo:
+  - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).
+  - Redacción en tercera persona, concisa y precisa.
+  - Lenguaje técnico apropiado para documentación clínica
+  - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.
+- Extensión: La descripción principal debe tener entre 250 a 350 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+  - Evitar redundancias.
+  - Mantener un orden cronológico.
+
+Contenido a Incluir en la Evolución del Padecimiento
+1. Datos Iniciales y Contexto:
+   - Género (hombre o mujer) y grupo etario del paciente (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años).
+   - Contexto sociofamiliar (por ejemplo, presencia o ausencia de padres, custodia, albergue, etc.) y dinámica familiar (relaciones, integración, factores parentales relevantes, eventos traumáticos, uso excesivo de dispositivos electrónicos, etc.).
+2. Descripción Clínica Detallada:
+   - Factores desencadenantes y exacerbantes.
+   - Cronología de síntomas y manifestaciones (afectivos, ansiosos, cognitivos, conductuales, patrón de sueño, alimentación, etc.).
+   - Evolución en severidad e intensidad de los síntomas a lo largo del tiempo.
+   - Impacto en la funcionalidad diaria: desempeño académico, relaciones familiares, interpersonales, socialización, etc.
+3. Estado Actual:
+   - Síntomas presentes y la principal motivación para acudir a consulta.
+
+Sección Adicional (Incluir al Final de la Descripción Principal)
+Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+1. Impresión diagnóstica
+    - En base a los síntomas narrados y en base a tu conocimiento como experto en psiquiatría infantil genera tu propia e indepéndiente hipotesis diagnóstica propia acorde a los criterios diagnósticos del DSM 5 TR o CIE 10, que incluya sus especificadores.
+    - Puedes mencionar diagnósticos concurrentes o complementarios
+    - 1 a 2 diagnósticos diferenciales
+2. Examen Mental
+    - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+    - Incluye la descripción basadi en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+        epontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado),
+        presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)
+        Ejemplos de examen mental:
+        - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+           volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen
+           control de impulsos.
+        - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+           inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+           juicio formal y buen control de impulsos.
+        - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+           afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+           o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
+3. Interacción entre medicamentos
+    - Identifica los medicamentos que esta o estará tomando y en base a conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción
+
+Información a Omitir
+- Todo dato que no esté relacionado con la evolución del padecimiento, salvo lo requerido en las secciones adicionales.
+- Información personal irrelevante, sugerencias terapéuticas, planes de tratamiento, juicios de valor, diagnósticos no explícitamente mencionados en la transcripción, análisis del caso o resúmenes finales así como expresiones coloquiales salvo las cita textuales de los dichos por el paciente o su acompañante
+
+Guías Adicionales
+- Mantener la objetividad: basar el informe solo en lo expresado por el paciente y acompañante (y, en su caso, su madre para contextualizar).
+- Seguir una cronología clara, desde la aparición de los síntomas hasta el estado actual.
+- Integrar de forma concisa las secciones adicionales, sin redundancias.
+- Descartar las intervenciones del médico, salvo cuando sean necesarias para interpretar o clarificar la experiencia subjetiva del paciente.
+- No utilices la palabras "autolisis" o "autolítico"
+
+            IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
+
+            EJEMPLO NÚMERO 1:
+            "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
+
+            EJEMPLO NÚMERO 2:
+            "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
+
+            EJEMPLO NÚMERO 3:
+            "Menor identificado desde la primaria con toda la sintomatología de hiperactividad, inatención, impulsividad, disperso, inatento, no trabajar, cuadernos y libros maltratados, mochila desorganizada, reportes constantes, en casa dificil para hacer tareas, no se le dio la atención y si se le generaban multiples regaños y sanciones, un hijo menor con diferencia con su hermana de 15 años, padres muy incompatibles por lo que vivió en medio muy disfuncional, el hermano mayor de 32a con tratamiento en salme, por lo que también es violento, ingresa a secundaria y aunado a la adolescencia totalmente disfuncional, no trabajar, no hacer tareas, distraído, fuera del salón y debuta en el consumo de multiples sustancias, ingresa a preparatoria y definitivamente abandona por el consumo principalmente de cocaína, asi pues que no estudia. Acude a psicología en varias ocasiones y a psiquiatría, le dijeron que tenía depresión y ansiedad y le dieron sertralina 50mg-d. Hace 5 meses vive con el padre porque pelea mucho con la madre, pero igual con el padre, miente de todo, exagera todo, le aumenta a todo, coamete hurtosmenores en la tienda de la madre como golosinas o algun billete de 20 pesos, ayer se disgustaron porque ya desconfían mucho de él y se tardó en un mandado y se pelearon, y se puso alterado, golpeando paredes, diciendo que quería morirse, el señala que siente una gran necesidad de consumir sustancias pero que sabe que no puede, se siente desesperado por salir a consumir asi que ayer consumió thc y clonazepam 1.5mg, y al no consumir siente que ya no existe nada que para que está. Acuden a urgencias y les dicen que se esperen a la cita de psiquiatria infantil."
+
+            EJEMPLO NÚMERO 4:
+            "Menor que proviene de familia disfuncional y desintegrada, se separan los padres, de principio se queda con la madre y el hermano, pero se señala que la mamá llevaba una vida sin responsabilidades, primero se va el hijo con el padre y hace 5 años la menor se va también con el padre, pues aparentemente presenció situaciones de tipo sexual y se la lleva el padre y está en juicio la custodia. Desde que la menor está en kinder se presentran los reportes de conducta y se hacen totalmente evidentes en primaria, inatención, dispersa, hiperactividad, impulsividad, peleonera, no trabajar en clase, bajas calificaciones, siempre de pie, platicando. En casa muy dificil para hacer las tareas, se le tienen que decir muchas ocasiones, y por lo tanto se enoja y hace berrinches y con ello se rasguña la cara, se azota en el suelo, se golpeó la cabeza y se hizo una herida, vive con el padre y la pareja del padre con su hija adolescente, con la madrastra es muy rebelde y con el padre ñmuy modocita, asi que el padre la tiene con superprotección, por lo que no tiene ni reglas ni normas, en la secundaria que acaba de ingresar ya están los reportes, y ademas de peleas con niñas mucho mas grandes que ella y las calificaciones fueron de 6 y 7 en todas las materias y por ello es que la traen a valoración."
+
+            EJEMPLO NÚMERO 5:
+            "Menor que proviene de familia desintegrada y disfuncional, la madre refiere que el padre la dejaba encerrada con su hija mayor, y el se iba a trabajar o a bailar o salir con sus amigos y amigas. Le dejaba de forma muy específica que tenía que hacer y que quería de comer y como prepararlo, fueron 5 años de esta forma de vida y al final decide ella separarse, la madre se queda con la custodia de la niña y el padre la visita o bien la menor va algunos fines de semana a casa de él, ella refiere que ya sentía cierto acercamiento por parte de él, y a los 10a ya hay tocamientos en varias ocasiones y finalmente termina en una presunta penetración, el padre la amenaza que si habla, "me iba a ir peor", por ello no lo dice e inicia con sintomatología caracterizada por tristeza, miedo, ansiedad, temblor, inquietud, sueño con pesadillas "tenía como un bloqueo", asi como presenta ideas suicidas por diversas situaciones como sentir a la madre distante de ella, por lo que sucedía con el padre, sentimiento de culpabilidad, pensó en el harocamiento sin ninguna planificación o intento. Refiere que por estar pensando primero en todos los problemas familiares y posterior por el presunto abordaje sexual, siempre muy distraída enla escuela, incluso pensaba que nno quería estudiar, por lo que siempre con muy bajas calificaciones, sin reportes de conducta. El 25 de noviembre 2024 la menor finalamente abre el tema con una tía, pues llegaba la fecha en que tendría que ir otra vez con el padre, la tía se lo dice a la madre y van a ciudad niñez en donde se interpone una denuncia, fue valorada por ginecobstetrica y psicología y que buscaran atención en psiquiatría y por eso están en la consulta. En este momento no dan ningun tipo de sintomatología pues ella refiere que una vez que lo dijo, cambió todo, se siente mejor, incluso en la escuela ya puede estudiar y tiene califs de 9 y 10."
+
+            EJEMPLO NÚMERO 6:
+            "Masculino escolar, procedente de familia desintegrada por dinámica de violencia y padre consumidor de metanfetaminas; con antecedente de gesta patológica, de nacimiento prematuro y bajo peso al nacer, por desprendimiento prematuro de placenta y múltiples patologías asociadas a la prematurez incluida la patología de base que motiva que acudan a consulta. Tras 2 años de múltiples manejos médicos y quirúrgicos inicia su terapie en crit- teletón donde reicbió terapia física con notoria mejoría motriz, comenzando con sedestación, gateo y bipedestación asistida y emisión de bisilabos. Hace un año la madre se percata del inicio de episodios de irriitabilidad con heteroagresividad y alteraciones del patrón de sueño con insomnio de inicio "se enojaba mucho, nos mordía, pellizcaba, no dejaba de llorar" sic. Madre. Es por lo anterior que fue valorado por el psiquiatra de dicha institución quien no dio diagnóstico e inició manejo a base de 0.5mg de risperidona con mejoría sustantiva en cuanto a lo conductual, cediendo irritabilidad, heteroagresividad y mejora en el patrón del sueño. Hace 4 meses es que la madre nota que de forma progresiva la irritabilidad, heteroagresividad y rabietas fueron en incremento por lo que en ausencia actual del servicio de psiquiatría en el crit, deciden acudir a nuestra institución parar valoración."
+
+            EJEMPLO NÚMERO 7:
+            "Menor que proviene de familia monoparental, segunda hija de madre añosa, la hermana mayor actualamente tiene 26a, se desarrolla dentro de la casa de la abuela materna, quien es una mujer rigida, estricta, regañona, y por otro lado la madre también muy estricta, lo que hace una niña muy ansiosa y preocupada, tiene un largo historial de la primaria, la cambiaron en 3 ocasiones, siempre porque fue sensible que si un maestro u otro le hablaban fuerte, que en ocasiones ella recoanoce era su persepción, en otras era real, esta inestabilidad genera que tenga bajas calificaciones, entre 6 y 7. Refiere que hace un año es que se hacen mas evidentes los sintomas afectivos que hasta entonces eran fluctuantes, ella refiere que como desencadenantes son los cambios de escuela, la abuela y su trato, la muerte del abuelo materno que era su figura paterna, conoce al padre y llevan una relacion irregular que ya ahora es nula, ella presenta sentimientos de soledad, no se expresa, no cuenta sus cosas, sentimiento de que en su casa la hacen a un lado, mala apreciacion de su aspecto personal, labilidad emocional, llora de todo, miedo al que dirán. Refiere que tiene eventos de sonambulismo 3 bien reconocidos y hace 22 días presentó dengue y tuvo hipertermia muy marcada y unmomento de estado delirante por lo mismo en la madugada, se salió de la casa, caminó varias calles y se regresó al su casa, la estuvieron buscando y la abuela por su carácter la regaño, que porque hacía eso, que porque se había salido en la madrugada y como la madre estaba en usa, la mujer se sentía responsable de todo. También refiere sintomatología de macropsias y alucinaciones quinestésicas. De forma especifica refiere sintomatología depresiv caracterizada por llanto, aislamiento, no hablar, no salir, sentirse incomprendida, desesperación, de ansiedad onicofagia, se quita la paiel de los dedos (padrastros), se truena los dedos, mueve constantemente los pies. Tuvo problemas en la secundaria por una amistad que le estimuló a no entrar a clases y por ello la reportaron. En casa irritable, contestona, malmodienta, no hace sus quehaceres, dificil para su aseo personal."
+
+            EJEMPLO NÚMERO 8:
+            "Hombre escolar, nacido en méxico y criado en eeuu desde los 2 años hasta hace 6 meses. Proviene de una familia integrada, aunque temporalmente separada por la permanencia del padre en eeuu hasta el siguiente mes. La familia está compuesta por la madre, quien es ama de casa, el padre, técnico en aire acondicionado, y un hermano menor de 3 años; es el mayor de 2 hermanos. Se le refiere como un menor aplicado en la escuela con buen desempeño académico, aunque impulsivo, poco tolerante a la frustración y con un patrón de sueño caracterizado por despertares prematuros (4 am). A partir de su ingreso a la primaria, se hicieron evidentes la dificultad para atender indicaciones de la madre, particularmente en actividades que le resultan tediosas, pérdida y descuido de los útiles escolares y una tendencia a la desorganización, principalmente manifiesta en el orden de su habitación. La sintomatología que los motiva a acudir hoy a consulta inició durante el curso de 2o. De primaria, cuando tras un malentendido entre una compañera y él, la madre de esta lo abordó extraoficial y unilateralmente con aparentes amenazas. A partir de entonces, se le comenzó a notar constantemente ansioso/temeroso, tendiente al retraimiento y con disminución de la interacción social, notablemente nervioso con inquietud constante y chupeteo de región perioral, desarrollando una dermatosis como consecuencia. Se observó el incremento de la irritabilidad, oposicionismo y hostigamiento hacia el hermano menor. Por lo anterior y a petición del menor, decidieron cambiar su lugar de residencia a méxico en junio del 2024, permaneciendo el padre en eeuu. La ausencia del padre a quien refiere extrañar; el proceso de adaptación por el cambio cultural, dinámica escolar, residencia con la abuela con quien tiene una relación de conflicto, acentuaron la sintomatología descrita, particularmente la irritabilidad y negativismo "es lo que más tiene, le digo que haga algo y a todo reniega, dice que porque él... También le trae mucho coraje a su hermano y se la pasa molestándolo" sic. Madre. Es por lo anterior que deciden acudir a valoración."
+
+            EJEMPLO NÚMERO 9:
+            "El menor tiene el historial que desde prescolar es reportado por inquietud, pero ya en primaria el cuadro es evidente, es un niño inatento, disperso, inquieto, platica, se levanta, deja trabajos incompletos, pierde artículos escolares e incluso ropa, descuidado con el uniforme, se ensucia, es muy poco tolerante con sus compañeros, pelea con ellos, no quiere que hagan ruido, lo que genera ciertas riñas, y por su intolerancia y que quiere corregir a todos ya lo apartan,él se da cuenta de esto, hacen equipos y no lo eligen, pobre concentración, trae la mochila revuelta, este ciclo se ha hecho mas evidente el cuadro por las exigencias propias del 3er año. En casa muy dificil para hacer las tareas, se le tiene que decir muchas veces, y se tarda mucho en terminar cualquier tarea, lo mismo sucede con el aseo personal, sus quehaceres, en la comida está inquieto, no puede hacer mas de una iandicación, come mas o menos bien pero se la pasa platidando en la comida, tiene muy poca tolerancia a todo, siempre dice que se siente "humillado", suele pelear con su hermana de 11a, la socialización es regular, conlal madre se enoa mucho, el estado de ánimo dice que "neutro", se siente ansioso reflejado por estres, irritabilidad, enojo, dice que por estar solo en la escuela, refiere insomnio intermedio, en alguna ocasión llegó a pensar en morir para ir a ver a su papá que murió hace 4 años por covid. La madre lo lleva a un centro llamado cade, se ve el rsumen que les dieron, atendido por un psiquiatra general y una medico general, le prescribieron mfd lp de 20mg 1-0-0, y risperidona 0.25mg-d, se le dio durante un mes, la madre vio muy poca respuesta, y en la escuela con el dx. Que les dieron de tdah mixto bajaron la tensión y bajaron los reportes, por costos ya que subieron la consulta a 1450 pesos y el medicamento, pues mejor ya lo trae a esta institución."
+
+            TEXTO A RESUMIR:
+            {transcripcion}'''
+    
+    else:
+        prompt = f'''
+            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
+
+            OBJETIVO: Distingue la información que corresponde a la consulta previa y a la actual, para una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
+
+            FORMATO REQUERIDO:
+            - Idioma español México
+            - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
+            - Extensión de 150 a 200 palabras
+            - Lenguaje técnico apropiado para documentación clínica
+            - Escrito en tercera persona
+
+            INCLUIR:
+            - Antecedentes relevantes del padecimiento y particularmente del estado y evolución desde la última consulta a la actual
+            - Cronología detallada de síntomas y manifestaciones (cognitivos, de socialización, emocionales, ansiosos, afectivos o anímicos, del sueño, del apetito y adherencia al tratamiento)
+            - Cambios en la severidad e intensidad de los síntomas a lo largo del tiempo
+            - Estado actual y evolución de sus relaciones interpersonales significativas y de su funcionalidad en ámbitos social, familiar, académico o laboral según corresponda
+            - Factores desencadenantes o exacerbantes identificados por el paciente
+            - Estado actual del paciente
+            - Después de un salto de línea escribe un análisis donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
+
+            OMITIR:
+            - Cualquier información que no forme parte de la evolución clínica del padecimiento
+            - Sugerencias o intervenciones terapéuticas expresadas por el médico durante la consulta actual
+            - Información personal no relevante
+            - Recomendaciones o planes de tratamiento
+            - Juicios de valor
+            - Diagnósticos
+            - Análisis o interpretaciones clínicas
+            - Resúmenes finales
+
+            IMPORTANTE: Dado que la transcripción incluye tanto las preguntas del médico como las respuestas del paciente, enfoca tu atención exclusivamente en las intervenciones del paciente que aporten información clínica relevante. Utiliza las preguntas del médico solo como guía para contextualizar las respuestas del paciente, sin incluirlas de forma directa.
+
+            ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS DE NOTAS DE EVOLUCIÓN A CONTINUACIÓN:
+
+            Ejemplo 1: “Se encuentra clínicamente estable, su ánimo lo refiere como mayoritariamente bien, salvo los primeros días a partir de que fue despedida, hecho que logró afrontar sin mayores complicaciones; se sintió apoyada por sus padres. Se encuentra buscando empleo, ha tenido entrevistas con adecuado desempeño y "segura" de sí misma; en ciernes entrevista que más le llama la atención. En cuanto a ansiedad ha presentado algunos síntomas asociados al estatus de la relación con su novio de la que en ocasiones se siente con culpa. Refiere un patrón de sueño fragmentado por las micciones nocturnas, 2 por noche. En cuanto al incremento de la dosis de MFD no notó tanto cambio, probablemente, por el contexto laboral. Se queja de hiporexia con impacto ponderal de 3kg en 3 semanas. El consumo de cannabis ha disminuido al igual que el craving.”
+
+            Ejemplo 2: “La paciente refiere que hacia el mes de diciembre después de entre 1 a 2 meses de haber suspendido la sertralina por "sentirse bien" comenzó con irritabilidad por lo que acudió a psicología con mejoría sustancial. Acude el día de hoy porque desde hace 2 meses ha notado anhedonia, llanto espontáneo, hiperfagia con aumento de peso lo que impacta de forma negativa en su ánimo. Ha tenido apatía, pérdida de interés, ha dejado de cocinar, lavar su ropa, fatiga, ha perdido el interés en su arreglo, baja en la líbido, pensamientos pasivos de muerte, culpa, minusvalía con recriminación a sí misma y tendencia al aislamiento. Comienza con insomnio de conciliación; hipoprosexia. No ha presentado síntomas ansiosos.”
+
+            Ejemplo 3: “Refiere que no ha notado cambios sustantivos respecto a la valoración previa salvo que ya ha tenido iniciativa para avanzar en los pendientes personales y encomendados. Por ejemplo hoy que no tuvo clase se puso a aspirar y lavar la alfombra de su cuarto, plan que tenía 2 meses en planes "antes me hubiera puesto hacer otra cosa". Ha tenido dificultades para despertar e ir a hacer ejercicio. Continúa con dificultades para conciliar el sueño aunque puede estar asociado a que, aunque se va a dormir a las 10pm, lo hace mientras está en videollamada con su novia. Una vez conciliado el sueño no despierta por las madrugadas y despierta hacia las 6:40 am para sus actividades, buen patrón alimenticio y de sueño. En lo escolar se siente un poco más social con mayor participación en clase e interacción con sus compañeros; en lo atencional ha mejorado sustantivamente en buena medida a que ha adoptado cambios como despejarse previo clase "voy al baño me mojo la cara, voy por una bebida y ya me enfoco mejor (sic)". En relación a la reducción de lorazepam no notó cambio alguno. Dice sentirse emocionado porque lo visitará su novia dentro de 1 mes. He disfrutado jugar XBOX, lavar los carros y cocinar.”
+
+            Ejemplo 4: “Acude paciente refiriéndo continuar con estabilidad de sus síntomas, es decir, con la disminución de la ansiedad y síntomas depresivos además de la casi ausencia de los pensamientos de culpa/minusvalía (los de muerte están ausentes); sin embargo refiere que algunos días, los menos, ha tenido algunas bajas en el estado de ánimo sin una causa identificada. Adecuada adherencia al tratamiento, patrón de sueño y alimenticio. También ha notado menos "fastidio" por estar haciendo su trabajo además de menor irritabilidad, mayor energía con mejor concentración y rendimiento en su empleo. En cuanto a la ansiedad casi han desaparecido las rumiaciones ansiógenas y cuando estas se presentan logra identificarlas y darles cauce. Continúa con actividad física a base de rutina dentro de casa con una frecuencia de 3 días por semana durante 40 minutos. Subjetivamente califica su estado de ánimo de un 8-9/10.”
+
+            Sección Adicional (Incluir al Final de la Descripción Principal)
+            Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+
+            1. Examen Mental
+                - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+                - Incluye la descripción basado en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+                    espontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado), conetnido del pensamiento (preocupaciones, rumiaciones, ideas obsesivas, intrusivas, etc.)
+                    presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)
+                    Ejemplos de examen mental:
+                    - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+                    volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen
+                    control de impulsos.
+                    - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, ropa acorde a clima y situación, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+                    inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+                    juicio formal y buen control de impulsos.
+                    - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+                    afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+                    o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
+            2. Interacción entre medicamentos
+                - Identifica los medicamentos que esta o estará tomando y en base a tu conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción
+
+            TEXTO A RESUMIR:
+            {transcripcion}'''
+    
     response = model.generate_content(prompt)
-    return getattr(response, "text", "") or ""
+    return response.text
+
+
+def resumen_transcripcion_deepinfra(transcripcion, nota):
+    """
+    Función de compatibilidad que usa DeepInfra directamente.
+    Mantiene la interfaz original para código legacy.
+    """
+    llm_model = 'Qwen/Qwen3-32B'
+    
+    if nota == "primera":
+        prompt = f'''
+                INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
+
+                OBJETIVO: Redactar la evolución del padecimiento del paciente, desde su inicio hasta el estado actual, integrando únicamente la información clínica relevante extraída de las intervenciones del paciente durante la consulta.
+
+                FORMATO REQUERIDO:
+                - Idioma español
+                - Texto en párrafos continuos (sin viñetas ni subtítulos), sin salto doble de línea
+                - Extensión de entre 300 a 600 palabras según lo amerite el caso
+                - Lenguaje técnico apropiado para documentación clínica
+                - Escrito en tercera persona
+
+                INCLUIR:
+                - Antecedentes relevantes del padecimiento
+                - Cronología detallada de síntomas y manifestaciones
+                - Cambios en la severidad e intensidad a lo largo del tiempo
+                - Factores desencadenantes o exacerbantes identificados
+                - Estado actual del paciente
+
+                OMITIR:
+                - Toda información que no corresponda a la evolución del padecimiento del paciente, incluyendo sugerencias terapéuticas realizadas o propuestas durante la consulta
+                - Información personal no relevante para la evolución
+                - Recomendaciones o plan de tratamiento
+                - Juicios de valor
+                - Diagnósticos
+                - Análisis sobre el caso
+                - Resúmenes al final del texto
+
+                IMPORTANTE: Dado que la transcripción incluye tanto preguntas del médico como respuestas del paciente, considera únicamente los fragmentos en los que el paciente describe su experiencia subjetiva. Ignora las intervenciones del médico excepto cuando sirvan para contextualizar una respuesta del paciente.
+
+                ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS A CONTINUACIÓN:
+
+                        Ejemplo 1:
+                        “Cuadro actual de aproximadamente 11 meses de evolución, de inicio insidioso, curso continuo y tendiente al empeoramiento, en el contexto de un trastorno depresivo recurrente que evoluciona hacia un trastorno depresivo persistente, desencadenado por conflictos en la relación con el padre de su hijo y agravado por dependencia emocional, aislamiento social y dificultades económicas.
+                        Por interrogatorio directo, la paciente refiere que desde entonces comenzó con estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con pérdida del interés por actividades que previamente disfrutaba dejando de arreglarse, maquillarse y salir con amigas. Presenta hiporexia con pérdida de 8 kg en aproximadamente 7 meses con fluctuaciones en el peso; hay insomnio mixto con múltiples despertares para verificar a su hijo. Se agregaron problemas de concentración con olvidos frecuentes incluyendo la administración de medicamentos, enlentecimiento psicomotriz y fatiga.
+
+                        Hay pensamientos persistentes de culpa relacionados con su embarazo y la percepción de "decepcionar" a sus padres, así como ideas de minusvalía "no sirvo para nada", "soy una mantenida", "les he fallado". Se añadieron pensamientos pasivos de muerte "sería mejor no estar" aunque sin ideación suicida estructurada. Presenta ansiedad con predominio de pensamientos catastróficos en relación a su familia, cefalea tipo migraña y estreñimiento.
+
+                        Hace aproximadamente 6 meses inició tratamiento con duloxetina 60mg/día notando mejoría parcial de síntomas aunque sin remisión completa. Hace un mes, tras descubrir una presunta infidelidad de su expareja, presenta exacerbación de síntomas depresivos con deterioro en autocuidado llegando a espaciar el baño hasta por una semana, mayor aislamiento social y inicio de consumo diario de alcohol (3 cervezas) como mecanismo de afrontamiento.
+
+                        Los síntomas han impactado significativamente en su funcionalidad, presentando deterioro en el autocuidado, dificultad para realizar las actividades de rehabilitación de su hijo y aislamiento social. Por lo anterior y el aumento de los síntomas ansiosos así como la perdida de motivación que decide acudir a consulta.”
+
+                        Ejemplo 2:
+                        “En el contexto de una historia de múltiples episodios depresivos, inicia su padecimiento actual en abril 2023 de forma insidiosa, continua y tendiente al empeoramiento sin un desencadenante aparente y agravado por deprivación académica, dificultades económicas, conflictos de pareja. Según refiere, desde entonces, comenzó con un estado de ánimo predominantemente deprimido, tendencia al llanto, apatía con perdida del interés por actividades que previamente daban placer dejándo de disfrutar sus actividades del día dejándo de asear su casa y descuidando su autocuidado. A lo anterior se añadieron hiporexia con perdida de entre 6 y 7 kg en 6 messes; hay insomnio mixto con latencia de conciliación de unas 2 horasy al menos 3 despertares; dificultades para la concentración con perdida de objetos y dificultad para mantener el hilo de conversaciones; enlentecimiento psicomotriz. Ha notado la presencia de pensamientos de culpa, minusvalía y pasivos de muerte "me siento insuficiente... siento que no le intereso a nadie, me rechazan y he pensado en mejor desaparecer [sic paciente]". A lo anterior se añadieron ansiedad flotante, nerviosísmo, cervicodorsalgia, aislamiento y episodios de pánico con sensación de ahogo, malestar torácico y síntomas vegetativos de 10-15 minutos de duración y que han ido incrementado en frecuencia de 1-2 / semana a 1-2 por día. Refiere que de junio a agosto presentó acoasmas fugaces con impacto en ánimo incrementando síntomas de ansiedad. En este contexto hace 1 mes, tras discutir con su madre, de forma impulsiva y con intención suicida, tomó unos 7ml de solución de clonazepam 2.5mg/ml sin necesidad de manejo intrahospitalario. Por lo anterior fue valorada hace 10 días en CEB en donde prescribieron fluoxetina con mejoría subjetiva referidade 10%. Por lo anterior es que decide acudir a valoración.”
+
+                        Ejemplo 4:
+                        “El episodio actual se da en el contexto de un patrón de conducta de inicio en la adolescencia tardía, persistentemente desadaptativo e inflexible caracterizado por sensación de vacío crónico, inestabilidad en la relaciones interpesonales y de emociones  con consecuentes conflictos con los padres y parejas; miedo al abandono que le ha condicionado mantenerse en una relación marcada por la violencia; ideas sobrevaloradas referenciales y distorsiones de la autoimagen; también ha presentado pobre tolerancia a la frustración que le conicionaron episodios de desregulación emociona con la presencia de ira desporporcionada e ipmulsividad que le generan conducta autolesivas como método de afrontamiento (cutting) y reactivación de pensamientos de muerte. Padecimiento de alrededor de 9 meses de inicio insidioso, continuo y tendiente al empeoramiento desencadenado por la muerte de la abuela y agravado por desempleo y separación del conyuge. Desde entonces ha presentado un estado de ánimo persistentemente triste, tendiente al llanto espontáneo; insomnio de inicio con latencia de conciliación de hasta 4 horas en asociación a rumiaciones entorno a su situación de pareja;  enlentecimiento psicomotor, problemas para la concentración con múltipls olvidos; hiporexia con perdida de 15 kg en un par de meses; además ha prsentado pensamientos de culpa, minusvalía y pasivos de muerte "Es mi culpa que me haya tratado así, me he fallado... a veces he pensado en no querer depesrtar pero pienso en mis hijos y pasa [sic]". De forma paralela ha presentado ansiedad flotante, cervicodorsalgia, nerviosísmo, inquietud motriz y paroxismos de exacerbación síntomas que se acompañan de descarga adrenérgica con sensación de muerte o perder el control. Hace 2 días, de forma impulsiva, tras ver su expareja con otra persona, presentó tentativa suicida abortada mediante flebotomía "me detienen mis hijos... fue el impuso en ese rato [sic]”
+
+                        TEXTO A RESUMIR:
+                    {transcripcion}'''
+    
+    elif nota == 'primera_paido':
+        prompt = f'''
+
+    Instrucciones Generales
+    Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
+
+    Objetivo Principal
+    Elaborar un informe preciso y conciso que describa la evolución del padecimiento del paciente desde su inicio hasta el estado actual, en orden cronológico y utilizando únicamente la información clínica relevante expresada por el paciente y su padre o madre (descartando las intervenciones del médico, salvo que sean necesarias para contextualizar la experiencia subjetiva).
+
+    Requisitos del Formato de la Respuesta
+    - Idioma: Español México.
+    - Estilo:
+    - Un solo párrafo (sin viñetas, subtítulos ni saltos dobles de línea).
+    - Redacción en tercera persona, concisa y precisa.
+    - Lenguaje técnico apropiado para documentación clínica
+    - Uso de lenguaje técnico propio de la psicopatología y semiología psiquiátrica.
+    - Extensión: La descripción principal debe tener entre 250 a 350 palabras según lo amerite el caso y sin incluir las secciones adicionales.
+    - Evitar redundancias.
+    - Mantener un orden cronológico.
+
+    Contenido a Incluir en la Evolución del Padecimiento
+    1. Datos Iniciales y Contexto:
+    - Género (hombre o mujer) y grupo etario del paciente (preescolar: 0-5 años, escolar: 5-11 años, adolescente: >11 años).
+    - Contexto sociofamiliar (por ejemplo, presencia o ausencia de padres, custodia, albergue, etc.) y dinámica familiar (relaciones, integración, factores parentales relevantes, eventos traumáticos, uso excesivo de dispositivos electrónicos, etc.).
+    2. Descripción Clínica Detallada:
+    - Factores desencadenantes y exacerbantes.
+    - Cronología de síntomas y manifestaciones (afectivos, ansiosos, cognitivos, conductuales, patrón de sueño, alimentación, etc.).
+    - Evolución en severidad e intensidad de los síntomas a lo largo del tiempo.
+    - Impacto en la funcionalidad diaria: desempeño académico, relaciones familiares, interpersonales, socialización, etc.
+    3. Estado Actual:
+    - Síntomas presentes y la principal motivación para acudir a consulta.
+
+    Sección Adicional (Incluir al Final de la Descripción Principal)
+    Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+    1. Impresión diagnóstica
+        - En base a los síntomas narrados y en base a tu conocimiento como experto en psiquiatría infantil genera tu propia e indepéndiente hipotesis diagnóstica propia acorde a los criterios diagnósticos del DSM 5 TR o CIE 10, que incluya sus especificadores.
+        - Puedes mencionar diagnósticos concurrentes o complementarios
+        - 1 a 2 diagnósticos diferenciales
+    2. Examen Mental
+        - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+        - Incluye la descripción basadi en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+            epontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado),
+            presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)
+            Ejemplos de examen mental:
+            - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+            volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen
+            control de impulsos.
+            - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+            inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+            juicio formal y buen control de impulsos.
+            - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+            afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+            o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
+    3. Interacción entre medicamentos
+        - Identifica los medicamentos que esta o estará tomando y en base a conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción
+
+    Información a Omitir
+    - Todo dato que no esté relacionado con la evolución del padecimiento, salvo lo requerido en las secciones adicionales.
+    - Información personal irrelevante, sugerencias terapéuticas, planes de tratamiento, juicios de valor, diagnósticos no explícitamente mencionados en la transcripción, análisis del caso o resúmenes finales así como expresiones coloquiales salvo las cita textuales de los dichos por el paciente o su acompañante
+
+    Guías Adicionales
+    - Mantener la objetividad: basar el informe solo en lo expresado por el paciente y acompañante (y, en su caso, su madre para contextualizar).
+    - Seguir una cronología clara, desde la aparición de los síntomas hasta el estado actual.
+    - Integrar de forma concisa las secciones adicionales, sin redundancias.
+    - Descartar las intervenciones del médico, salvo cuando sean necesarias para interpretar o clarificar la experiencia subjetiva del paciente.
+    - No utilices la palabras "autolisis" o "autolítico"
+
+                IMPORTANTE: IMPLEMENTA EL ESTILO, REDACCIÓN, SINTAXIS Y VOCABULARIO UTILIZADO EN LOS SIGUIENTES EJEMPLOS:
+
+                EJEMPLO NÚMERO 1:
+                "Se refiere una menor que proviene de una familia integrada, el padre era director de una secundaria, muere hace 3 años, era alcohólico. Ella refiere que tenia una relacion muy distante con el padre, "no me decía hija, me decía niña", muy pobre convivencia e interacción afectiva. Ella se ha caracterizado desde siempre de ser una niña solitaria, pocas amistades, en la escuela pobre convivencia, pero ya para 5to año con unas amigas hizo un video porno animado haciendom alución a un par de compañeros, lo que provocó que la condicionaran, y también le rompió un huevo de confeti a una maestra y tuvo un reporte. Ella señala que tuvo varios cambios de primaria por el trabajo de la madre como intendente y le toca pandemia de covid en 6to, por lo que ingresa a mitad de secundaria y mismo comportamiento de aislamiento, ella acepta que poco hizo, poco trabajó y logró terminarla y actualmente en preparatoria, ella dice que faltan mucho los maestros, que no tiene amigas y que por eso dejó de ir, así que termina con 64 y 3 materias reprobadas. La madre la refiere depresiva, siempre aislada en su habitación, no habla con nadie, irritable, intolerante, agresiva, no tolera indicaciones, tiene su habitación sucia, come mucho pues no tiene nada que hacer, se la pasa viendo videos, series, videojuegos, se dice estar ansiosa, pues piensa mucho las cosas, onicofagia, se muerde las mucosas de la boca, se siente de ánimo "regular, seria, pensativa", niega ideas de muerte o suicidio, alguna vez en 5to año y por los problemas que tuvo. Por estar en sus pensamientos no pone atención en nada y la madre se enoja pues no hace lo que le pide. Hace un mes van a psicología y esta pide que venga a psiquiatría para ser medicada. "
+
+                EJEMPLO NÚMERO 2:
+                "Menor que es identificado desde el kinder como muy inquieto, pero ahora que entra a primaria totralmente un cuadro caracterizado por inatención, disperso, inquieto, no trabaja en clase pues se la pasa parado y platicando, se sale del salón, muy rudo en su trato con sus compañeros, empuja o pelea, libros y cuadernos maltratados, mochila desorgaizada, pierde sus artículos escolares. En casa muy dificil para que haga las tareas, se enoja y se le tiene que presionar y vigilar, todo el tiempo en movimiento, en la comida, se levanta constantemente, se le tiene que corregir constantemente, se le castiga, tiene momentos en que es contestón, grosero, desobediente, no mide los peligros, en la calle se le tiene que vigilar pues se cruza las calles, presenta enuresis 5x30, en la socialización si convive pero termina peleando o haciendo trampa en los juegos pues no sabe perder y llora mucho. La maestra yua no lo aguanta en el salón, por eso lo deriva a esta institución. "
+
+                EJEMPLO NÚMERO 3:
+                "Menor identificado desde la primaria con toda la sintomatología de hiperactividad, inatención, impulsividad, disperso, inatento, no trabajar, cuadernos y libros maltratados, mochila desorganizada, reportes constantes, en casa dificil para hacer tareas, no se le dio la atención y si se le generaban multiples regaños y sanciones, un hijo menor con diferencia con su hermana de 15 años, padres muy incompatibles por lo que vivió en medio muy disfuncional, el hermano mayor de 32a con tratamiento en salme, por lo que también es violento, ingresa a secundaria y aunado a la adolescencia totalmente disfuncional, no trabajar, no hacer tareas, distraído, fuera del salón y debuta en el consumo de multiples sustancias, ingresa a preparatoria y definitivamente abandona por el consumo principalmente de cocaína, asi pues que no estudia. Acude a psicología en varias ocasiones y a psiquiatría, le dijeron que tenía depresión y ansiedad y le dieron sertralina 50mg-d. Hace 5 meses vive con el padre porque pelea mucho con la madre, pero igual con el padre, miente de todo, exagera todo, le aumenta a todo, coamete hurtosmenores en la tienda de la madre como golosinas o algun billete de 20 pesos, ayer se disgustaron porque ya desconfían mucho de él y se tardó en un mandado y se pelearon, y se puso alterado, golpeando paredes, diciendo que quería morirse, el señala que siente una gran necesidad de consumir sustancias pero que sabe que no puede, se siente desesperado por salir a consumir asi que ayer consumió thc y clonazepam 1.5mg, y al no consumir siente que ya no existe nada que para que está. Acuden a urgencias y les dicen que se esperen a la cita de psiquiatria infantil."
+
+                EJEMPLO NÚMERO 4:
+                "Menor que proviene de familia disfuncional y desintegrada, se separan los padres, de principio se queda con la madre y el hermano, pero se señala que la mamá llevaba una vida sin responsabilidades, primero se va el hijo con el padre y hace 5 años la menor se va también con el padre, pues aparentemente presenció situaciones de tipo sexual y se la lleva el padre y está en juicio la custodia. Desde que la menor está en kinder se presentran los reportes de conducta y se hacen totalmente evidentes en primaria, inatención, dispersa, hiperactividad, impulsividad, peleonera, no trabajar en clase, bajas calificaciones, siempre de pie, platicando. En casa muy dificil para hacer las tareas, se le tienen que decir muchas ocasiones, y por lo tanto se enoja y hace berrinches y con ello se rasguña la cara, se azota en el suelo, se golpeó la cabeza y se hizo una herida, vive con el padre y la pareja del padre con su hija adolescente, con la madrastra es muy rebelde y con el padre ñmuy modocita, asi que el padre la tiene con superprotección, por lo que no tiene ni reglas ni normas, en la secundaria que acaba de ingresar ya están los reportes, y ademas de peleas con niñas mucho mas grandes que ella y las calificaciones fueron de 6 y 7 en todas las materias y por ello es que la traen a valoración."
+
+                EJEMPLO NÚMERO 5:
+                "Menor que proviene de familia desintegrada y disfuncional, la madre refiere que el padre la dejaba encerrada con su hija mayor, y el se iba a trabajar o a bailar o salir con sus amigos y amigas. Le dejaba de forma muy específica que tenía que hacer y que quería de comer y como prepararlo, fueron 5 años de esta forma de vida y al final decide ella separarse, la madre se queda con la custodia de la niña y el padre la visita o bien la menor va algunos fines de semana a casa de él, ella refiere que ya sentía cierto acercamiento por parte de él, y a los 10a ya hay tocamientos en varias ocasiones y finalmente termina en una presunta penetración, el padre la amenaza que si habla, "me iba a ir peor", por ello no lo dice e inicia con sintomatología caracterizada por tristeza, miedo, ansiedad, temblor, inquietud, sueño con pesadillas "tenía como un bloqueo", asi como presenta ideas suicidas por diversas situaciones como sentir a la madre distante de ella, por lo que sucedía con el padre, sentimiento de culpabilidad, pensó en el harocamiento sin ninguna planificación o intento. Refiere que por estar pensando primero en todos los problemas familiares y posterior por el presunto abordaje sexual, siempre muy distraída enla escuela, incluso pensaba que nno quería estudiar, por lo que siempre con muy bajas calificaciones, sin reportes de conducta. El 25 de noviembre 2024 la menor finalamente abre el tema con una tía, pues llegaba la fecha en que tendría que ir otra vez con el padre, la tía se lo dice a la madre y van a ciudad niñez en donde se interpone una denuncia, fue valorada por ginecobstetrica y psicología y que buscaran atención en psiquiatría y por eso están en la consulta. En este momento no dan ningun tipo de sintomatología pues ella refiere que una vez que lo dijo, cambió todo, se siente mejor, incluso en la escuela ya puede estudiar y tiene califs de 9 y 10."
+
+                EJEMPLO NÚMERO 6:
+                "Masculino escolar, procedente de familia desintegrada por dinámica de violencia y padre consumidor de metanfetaminas; con antecedente de gesta patológica, de nacimiento prematuro y bajo peso al nacer, por desprendimiento prematuro de placenta y múltiples patologías asociadas a la prematurez incluida la patología de base que motiva que acudan a consulta. Tras 2 años de múltiples manejos médicos y quirúrgicos inicia su terapie en crit- teletón donde reicbió terapia física con notoria mejoría motriz, comenzando con sedestación, gateo y bipedestación asistida y emisión de bisilabos. Hace un año la madre se percata del inicio de episodios de irriitabilidad con heteroagresividad y alteraciones del patrón de sueño con insomnio de inicio "se enojaba mucho, nos mordía, pellizcaba, no dejaba de llorar" sic. Madre. Es por lo anterior que fue valorado por el psiquiatra de dicha institución quien no dio diagnóstico e inició manejo a base de 0.5mg de risperidona con mejoría sustantiva en cuanto a lo conductual, cediendo irritabilidad, heteroagresividad y mejora en el patrón del sueño. Hace 4 meses es que la madre nota que de forma progresiva la irritabilidad, heteroagresividad y rabietas fueron en incremento por lo que en ausencia actual del servicio de psiquiatría en el crit, deciden acudir a nuestra institución parar valoración."
+
+                EJEMPLO NÚMERO 7:
+                "Menor que proviene de familia monoparental, segunda hija de madre añosa, la hermana mayor actualamente tiene 26a, se desarrolla dentro de la casa de la abuela materna, quien es una mujer rigida, estricta, regañona, y por otro lado la madre también muy estricta, lo que hace una niña muy ansiosa y preocupada, tiene un largo historial de la primaria, la cambiaron en 3 ocasiones, siempre porque fue sensible que si un maestro u otro le hablaban fuerte, que en ocasiones ella recoanoce era su persepción, en otras era real, esta inestabilidad genera que tenga bajas calificaciones, entre 6 y 7. Refiere que hace un año es que se hacen mas evidentes los sintomas afectivos que hasta entonces eran fluctuantes, ella refiere que como desencadenantes son los cambios de escuela, la abuela y su trato, la muerte del abuelo materno que era su figura paterna, conoce al padre y llevan una relacion irregular que ya ahora es nula, ella presenta sentimientos de soledad, no se expresa, no cuenta sus cosas, sentimiento de que en su casa la hacen a un lado, mala apreciacion de su aspecto personal, labilidad emocional, llora de todo, miedo al que dirán. Refiere que tiene eventos de sonambulismo 3 bien reconocidos y hace 22 días presentó dengue y tuvo hipertermia muy marcada y unmomento de estado delirante por lo mismo en la madugada, se salió de la casa, caminó varias calles y se regresó al su casa, la estuvieron buscando y la abuela por su carácter la regaño, que porque hacía eso, que porque se había salido en la madrugada y como la madre estaba en usa, la mujer se sentía responsable de todo. También refiere sintomatología de macropsias y alucinaciones quinestésicas. De forma especifica refiere sintomatología depresiv caracterizada por llanto, aislamiento, no hablar, no salir, sentirse incomprendida, desesperación, de ansiedad onicofagia, se quita la paiel de los dedos (padrastros), se truena los dedos, mueve constantemente los pies. Tuvo problemas en la secundaria por una amistad que le estimuló a no entrar a clases y por ello la reportaron. En casa irritable, contestona, malmodienta, no hace sus quehaceres, dificil para su aseo personal."
+
+                EJEMPLO NÚMERO 8:
+                "Hombre escolar, nacido en méxico y criado en eeuu desde los 2 años hasta hace 6 meses. Proviene de una familia integrada, aunque temporalmente separada por la permanencia del padre en eeuu hasta el siguiente mes. La familia está compuesta por la madre, quien es ama de casa, el padre, técnico en aire acondicionado, y un hermano menor de 3 años; es el mayor de 2 hermanos. Se le refiere como un menor aplicado en la escuela con buen desempeño académico, aunque impulsivo, poco tolerante a la frustración y con un patrón de sueño caracterizado por despertares prematuros (4 am). A partir de su ingreso a la primaria, se hicieron evidentes la dificultad para atender indicaciones de la madre, particularmente en actividades que le resultan tediosas, pérdida y descuido de los útiles escolares y una tendencia a la desorganización, principalmente manifiesta en el orden de su habitación. La sintomatología que los motiva a acudir hoy a consulta inició durante el curso de 2o. De primaria, cuando tras un malentendido entre una compañera y él, la madre de esta lo abordó extraoficial y unilateralmente con aparentes amenazas. A partir de entonces, se le comenzó a notar constantemente ansioso/temeroso, tendiente al retraimiento y con disminución de la interacción social, notablemente nervioso con inquietud constante y chupeteo de región perioral, desarrollando una dermatosis como consecuencia. Se observó el incremento de la irritabilidad, oposicionismo y hostigamiento hacia el hermano menor. Por lo anterior y a petición del menor, decidieron cambiar su lugar de residencia a méxico en junio del 2024, permaneciendo el padre en eeuu. La ausencia del padre a quien refiere extrañar; el proceso de adaptación por el cambio cultural, dinámica escolar, residencia con la abuela con quien tiene una relación de conflicto, acentuaron la sintomatología descrita, particularmente la irritabilidad y negativismo "es lo que más tiene, le digo que haga algo y a todo reniega, dice que porque él... También le trae mucho coraje a su hermano y se la pasa molestándolo" sic. Madre. Es por lo anterior que deciden acudir a valoración."
+
+                EJEMPLO NÚMERO 9:
+                "El menor tiene el historial que desde prescolar es reportado por inquietud, pero ya en primaria el cuadro es evidente, es un niño inatento, disperso, inquieto, platica, se levanta, deja trabajos incompletos, pierde artículos escolares e incluso ropa, descuidado con el uniforme, se ensucia, es muy poco tolerante con sus compañeros, pelea con ellos, no quiere que hagan ruido, lo que genera ciertas riñas, y por su intolerancia y que quiere corregir a todos ya lo apartan,él se da cuenta de esto, hacen equipos y no lo eligen, pobre concentración, trae la mochila revuelta, este ciclo se ha hecho mas evidente el cuadro por las exigencias propias del 3er año. En casa muy dificil para hacer las tareas, se le tiene que decir muchas veces, y se tarda mucho en terminar cualquier tarea, lo mismo sucede con el aseo personal, sus quehaceres, en la comida está inquieto, no puede hacer mas de una iandicación, come mas o menos bien pero se la pasa platidando en la comida, tiene muy poca tolerancia a todo, siempre dice que se siente "humillado", suele pelear con su hermana de 11a, la socialización es regular, conlal madre se enoa mucho, el estado de ánimo dice que "neutro", se siente ansioso reflejado por estres, irritabilidad, enojo, dice que por estar solo en la escuela, refiere insomnio intermedio, en alguna ocasión llegó a pensar en morir para ir a ver a su papá que murió hace 4 años por covid. La madre lo lleva a un centro llamado cade, se ve el rsumen que les dieron, atendido por un psiquiatra general y una medico general, le prescribieron mfd lp de 20mg 1-0-0, y risperidona 0.25mg-d, se le dio durante un mes, la madre vio muy poca respuesta, y en la escuela con el dx. Que les dieron de tdah mixto bajaron la tensión y bajaron los reportes, por costos ya que subieron la consulta a 1450 pesos y el medicamento, pues mejor ya lo trae a esta institución."
+
+                TEXTO A RESUMIR:
+                {transcripcion}'''
+    
+    else:
+        prompt = f'''
+            INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
+
+            OBJETIVO: Distingue la información que corresponde a la consulta previa y a la actual, para una nota de evolución clínica del paciente, precisa y concisa que abarque los cambios y continuidad en la presentación de síntomas, desde la última valoración hasta la fecha actual.
+
+            FORMATO REQUERIDO:
+            - Idioma español México
+            - Texto en un párrafo (sin viñetas, sin espacio entre párrafos ni subtítulos), sin salto doble de línea
+            - Extensión de 150 a 200 palabras
+            - Lenguaje técnico apropiado para documentación clínica
+            - Escrito en tercera persona
+
+            INCLUIR:
+            - Antecedentes relevantes del padecimiento y particularmente del estado y evolución desde la última consulta a la actual
+            - Cronología detallada de síntomas y manifestaciones (cognitivos, de socialización, emocionales, ansiosos, afectivos o anímicos, del sueño, del apetito y adherencia al tratamiento)
+            - Cambios en la severidad e intensidad de los síntomas a lo largo del tiempo
+            - Estado actual y evolución de sus relaciones interpersonales significativas y de su funcionalidad en ámbitos social, familiar, académico o laboral según corresponda
+            - Factores desencadenantes o exacerbantes identificados por el paciente
+            - Estado actual del paciente
+            - Después de un salto de línea escribe un análisis donde incluyas las decisiones tomadas sobre el tratamiento, las recomendaciones hechas, los acuerdos hechos y tareas pendientes del paciente, durante la entrevista actual (ej. se decide continuar mismo tratamiento por estabilidad de síntomas, se brinda psicoeducación respecto al apego al tratamiento y se acuerda mejorar el desempeño académico y relación con sus padres, etc.)
+
+            OMITIR:
+            - Cualquier información que no forme parte de la evolución clínica del padecimiento
+            - Sugerencias o intervenciones terapéuticas expresadas por el médico durante la consulta actual
+            - Información personal no relevante
+            - Recomendaciones o planes de tratamiento
+            - Juicios de valor
+            - Diagnósticos
+            - Análisis o interpretaciones clínicas
+            - Resúmenes finales
+
+            IMPORTANTE: Dado que la transcripción incluye tanto las preguntas del médico como las respuestas del paciente, enfoca tu atención exclusivamente en las intervenciones del paciente que aporten información clínica relevante. Utiliza las preguntas del médico solo como guía para contextualizar las respuestas del paciente, sin incluirlas de forma directa.
+
+            ESTRUCTURA TU RESPUESTA SIGUIENDO ESTILO DE LOS EJEMPLOS DE NOTAS DE EVOLUCIÓN A CONTINUACIÓN:
+
+            Ejemplo 1: “Se encuentra clínicamente estable, su ánimo lo refiere como mayoritariamente bien, salvo los primeros días a partir de que fue despedida, hecho que logró afrontar sin mayores complicaciones; se sintió apoyada por sus padres. Se encuentra buscando empleo, ha tenido entrevistas con adecuado desempeño y "segura" de sí misma; en ciernes entrevista que más le llama la atención. En cuanto a ansiedad ha presentado algunos síntomas asociados al estatus de la relación con su novio de la que en ocasiones se siente con culpa. Refiere un patrón de sueño fragmentado por las micciones nocturnas, 2 por noche. En cuanto al incremento de la dosis de MFD no notó tanto cambio, probablemente, por el contexto laboral. Se queja de hiporexia con impacto ponderal de 3kg en 3 semanas. El consumo de cannabis ha disminuido al igual que el craving.”
+
+            Ejemplo 2: “La paciente refiere que hacia el mes de diciembre después de entre 1 a 2 meses de haber suspendido la sertralina por "sentirse bien" comenzó con irritabilidad por lo que acudió a psicología con mejoría sustancial. Acude el día de hoy porque desde hace 2 meses ha notado anhedonia, llanto espontáneo, hiperfagia con aumento de peso lo que impacta de forma negativa en su ánimo. Ha tenido apatía, pérdida de interés, ha dejado de cocinar, lavar su ropa, fatiga, ha perdido el interés en su arreglo, baja en la líbido, pensamientos pasivos de muerte, culpa, minusvalía con recriminación a sí misma y tendencia al aislamiento. Comienza con insomnio de conciliación; hipoprosexia. No ha presentado síntomas ansiosos.”
+
+            Ejemplo 3: “Refiere que no ha notado cambios sustantivos respecto a la valoración previa salvo que ya ha tenido iniciativa para avanzar en los pendientes personales y encomendados. Por ejemplo hoy que no tuvo clase se puso a aspirar y lavar la alfombra de su cuarto, plan que tenía 2 meses en planes "antes me hubiera puesto hacer otra cosa". Ha tenido dificultades para despertar e ir a hacer ejercicio. Continúa con dificultades para conciliar el sueño aunque puede estar asociado a que, aunque se va a dormir a las 10pm, lo hace mientras está en videollamada con su novia. Una vez conciliado el sueño no despierta por las madrugadas y despierta hacia las 6:40 am para sus actividades, buen patrón alimenticio y de sueño. En lo escolar se siente un poco más social con mayor participación en clase e interacción con sus compañeros; en lo atencional ha mejorado sustantivamente en buena medida a que ha adoptado cambios como despejarse previo clase "voy al baño me mojo la cara, voy por una bebida y ya me enfoco mejor (sic)". En relación a la reducción de lorazepam no notó cambio alguno. Dice sentirse emocionado porque lo visitará su novia dentro de 1 mes. He disfrutado jugar XBOX, lavar los carros y cocinar.”
+
+            Ejemplo 4: “Acude paciente refiriéndo continuar con estabilidad de sus síntomas, es decir, con la disminución de la ansiedad y síntomas depresivos además de la casi ausencia de los pensamientos de culpa/minusvalía (los de muerte están ausentes); sin embargo refiere que algunos días, los menos, ha tenido algunas bajas en el estado de ánimo sin una causa identificada. Adecuada adherencia al tratamiento, patrón de sueño y alimenticio. También ha notado menos "fastidio" por estar haciendo su trabajo además de menor irritabilidad, mayor energía con mejor concentración y rendimiento en su empleo. En cuanto a la ansiedad casi han desaparecido las rumiaciones ansiógenas y cuando estas se presentan logra identificarlas y darles cauce. Continúa con actividad física a base de rutina dentro de casa con una frecuencia de 3 días por semana durante 40 minutos. Subjetivamente califica su estado de ánimo de un 8-9/10.”
+
+            Sección Adicional (Incluir al Final de la Descripción Principal)
+            Usa exclusivamente la información extraída de la transcripción para desarrollar lo siguiente:
+
+            1. Examen Mental
+                - Incluye solo la información dentro de la transcripción y en caso de que no este omitela, no menciones que no esta
+                - Incluye la descripción basado en los ejemplos dados y en el siguiente orden: Apariencia (higiene, aliño), estado de alerta, atención, motricidad, estado de ánimo, afecto al momento de la entrevis. Características del discurso (si es
+                    espontáneo, inducido, fluido o no, parco, abundante o prolijo, coherente, congruente, volumen, velocidad y latencia de respuesta), pensamiento (lineal, circunstancial, circunloquial, tangencial, disgregado), conetnido del pensamiento (preocupaciones, rumiaciones, ideas obsesivas, intrusivas, etc.)
+                    presencia de psicosis (alucinaciones o delirios), ideación o fenómeno suicida, intrsopección del paciente sobre su enfermedad, juicio (2 a 7 años de edad = preoperacional, 7 a 12 años = concreta y > 12 años formal. Además si el juicio esta dentro del marco de la realidad o fuera en caso de que haya síntomas de psicosis),control de impulsos)
+                    Ejemplos de examen mental:
+                    - Ejemplo 1: Se trata hombre adolescente con adecuada higiene y aliño, alerta, atento, orientado cooperador de ánimo eutímico con un afecto congruente y resonante. Discurso inducido, fludio, coherente, congruente,
+                    volumen, velocidad y latencia de respuesta adecuados. Pensamiento lineal sin que al momento de la entrevista se encuentre psicosis o fenómeno suicida. Adecuada introspección, juicio concreto y buen
+                    control de impulsos.
+                    - Ejemplo 2: Se trata de mujer con adecuada higiene y aliño, ropa acorde a clima y situación, alerta, atenta, orientada, cooperadora con inquietud motriz circunscrita a pies y manos. Refiere un ánimo ansioso con afecto congruente. Discurso
+                    inducido, parco, coherente, congruente, volumen bajo, velocidad adecuada y latencia de respuesta discretamente aumentada. Pensamiento lineal sin datos de psicosis o ideación suicida. Parcial introspección,
+                    juicio formal y buen control de impulsos.
+                    - Ejemplo 3: Hombre escolar con regular higiene y aliño, alerta, hipoproséxico, hipercinetico, incapaz de mantenerse en su sitio incluso deambulando por el consultorio. Parcialmente cooperador. Ánimo referido como irritable con
+                    afecto disonante. Discurso espontáneo, fluido, intrusivo, taquilálico coherente, congruente, con velocidad y volumen adecuados; latencia de respues disminuida. Pensamiento circunstancial y prolijo sin ideación suicida
+                    o psicosis. Pobre introspección, juicio concreto y pobre control de impulsos.
+            2. Interacción entre medicamentos
+                - Identifica los medicamentos que esta o estará tomando y en base a tu conocimiento determina si hay alguna interacción entre ellos con una mención breve del tipo de interacción
+
+            TEXTO A RESUMIR:
+            {transcripcion}'''
+    
+    response = openai.chat.completions.create(
+        model=llm_model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=4000
+    )
+    
+    output_text = response.choices[0].message.content
+    output_text = re.sub(r'<think>[\s\S]*?</think>', '', output_text).strip()
+    return output_text
+
+
+# Función wrapper para mantener compatibilidad con código antiguo
+def resumen_transcripcion(transcripcion, nota, modelo="gemini"):
+    """
+    Función wrapper para mantener compatibilidad con código existente.
+    
+    Args:
+        transcripcion: Texto a procesar
+        nota: Tipo de nota
+        modelo: "gemini" o "deepinfra"
+    """
+    if modelo.lower() == "gemini":
+        return resumen_transcripcion_gemini(transcripcion, nota)
+    else:
+        return resumen_transcripcion_deepinfra(transcripcion, nota)
+
+
+# Función auxiliar para comparar resultados
+def compare_llm_results(transcription_text: str, nota: str):
+    """
+    Función auxiliar para comparar resultados de ambos modelos lado a lado.
+    
+    Returns:
+        Diccionario con resultados de ambos modelos
+    """
+    results = {}
+    
+    with st.spinner("Procesando con Gemini..."):
+        try:
+            results['gemini'] = process_transcription_with_llm(
+                transcription_text, 
+                nota, 
+                use_gemini=True
+            )
+            results['gemini_status'] = 'success'
+        except Exception as e:
+            results['gemini'] = f"Error: {str(e)}"
+            results['gemini_status'] = 'error'
+    
+    with st.spinner("Procesando con DeepInfra..."):
+        try:
+            results['deepinfra'] = process_transcription_with_llm(
+                transcription_text, 
+                nota, 
+                use_gemini=False
+            )
+            results['deepinfra_status'] = 'success'
+        except Exception as e:
+            results['deepinfra'] = f"Error: {str(e)}"
+            results['deepinfra_status'] = 'error'
+    
+    return results
+
+
+# Mantener la función original como respaldo
+def audio_recorder_transcriber_backup(nota: str):
+    """Función de respaldo usando el método anterior con mic_recorder."""
+    # ... [código original de audio_recorder_transcriber]
+    pass
+
+
+def calculate_age(born):
+    today = datetime.now()
+    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+def clin_merge(scale):
+    if scale != '':
+        return f' {scale}, '
+    else:
+        return ''
+
+def radio_check(var):
+    if var != '':
+        return 'Yes'
+    else:
+        return ''
+
+def update_dict(dic,var):
+    dic.update({var:'Yes',})
+
+def id_gen():
+    now = datetime.now()
+    date_id = now.strftime('%d%m%y%H%M%S')
+    return int(date_id)
+
+def ensure_index(action, collection, index_name, index_key):
+    """
+    Ensure that a specified index exists on a collection. If the index does not
+    exist, create it using the specified index key.
+    """
+    if action == 'create':
+        if index_name not in [idx['name'] for idx in collection.list_indexes()]:
+            collection.create_index(index_key, name=index_name)
+            print(f"Created index '{index_name}' on collection '{collection.name}'")
+        else:
+            print(f"Index '{index_name}' already exists on collection '{collection.name}'")
+    else:
+        collection.drop_index(index_name)
+        print(f'Index {index_name} has been deleted')
+
+def search_collection(collection, criteria, all_info = True):
+    """
+    Search a MongoDB collection for documents that match a set of criteria.
+    """
+    results = []
+    if all_info:
+        for document in collection.find(criteria):
+            results.append(document)
+        return results
+    else:
+        for document in collection.find(criteria,{'_id': 0, 'nombres':1,'primer apellido':1,'segundo apellido':1,'generales.nacimiento.fecha': 1}):
+            results.append(document)
+        return results
+
+def unidecode_except(string):
+    exceptions = ['ñ','1','2','3','4','5','6','7','8','9','0',]
+    replaced_string = ''
+    for c in string:
+        if c in exceptions:
+            replaced_string += c
+        else:
+            replaced_string += un            replaced_string += unidecode(c)
+
+            return replaced_string
+        
+        def data_format(field, val):
+            """
+            :param field: Debe ser array
+            :param val: Debe ser array
+            """
+            for i in range(len(val)):
+                val[i]= unidecode_except(val[i])
+        
+            temp_ar = {}
+            for i in range(len(field)):
+                temp_ar[field[i]] = {"$regex": val[i],"$options": "i"}
+            return temp_ar
+        
+        def doc_field(database_name, collection_name, filter, projection):
+            db = database_name
+            collection = db[collection_name]
+            documents = collection.find(filter, projection)
+        
+            results = []
+            for document in documents:
+                result = {}
+                for field in projection:
+                    result[field] = document[field]
+                results.append(result)
+            return results
+        
+        def buscar_clientes(nombre, apellido_paterno, apellido_materno):
+            db = ['expedinente electronico']
+            collection = db['pacientes']
+        
+            resultados = collection.find({
+                'nombre': nombre,
+                'apellido_paterno': apellido_paterno,
+                'apellido_materno': apellido_materno
+            }, {
+                '_id': 0,
+                'generales.fecha_nacimiento': 1
+            })
+        
+            return [r for r in resultados]
+        
+        def check_ef(var):
+            if var == "":
+                var = 'sin alteraciones'
+            return var
+        
+        def note_show(consultas_previas, paciente, nota):
+            renglon = '\n'
+            evol = st.expander('CONSULTAS PREVIAS', expanded=True)
+            with evol:
+                fechas_citas = []
+                for i in range(consultas_previas):
+                    fechas_citas.insert(0,paciente[0]['consultas'][i]['fecha'])
+                fecha_nota_prev = st.selectbox('Seleccione fecha de citas previas:', fechas_citas)
+                for consulta in paciente[0]["consultas"]:
+                    if consulta["fecha"] == fecha_nota_prev:
+                        if consulta['fecha'] == fechas_citas[-1]:
+                            st.subheader('Consulta de primera vez')
+                            st.text_area('', nota, height=300)
+                        else:
+                            prev_cons = consulta
+        
+                            consulta_anterior = ('##### '+prev_cons['fecha'] + renglon + renglon +
+                                                    '> ' + prev_cons['presentacion'].replace('\n', ' ') + renglon + '- ' +
+                                                    prev_cons['subjetivo'] + renglon + renglon +
+                                                    '- '+'SOMATOMETRÍA Y SIGNOS VITALES:' + renglon +
+                                                    'FC: ' + prev_cons['fc'] + ' lpm' + ' | ' +  'FR: ' + prev_cons['fr'] + ' rpm' + ' | ' + 'TA: ' + prev_cons['ta'] + ' mmHg' + ' | ' + ' ------- ' + 'PESO: ' +  str(prev_cons['peso']) + ' ' + 'kg' + '  ' + 'TALLA: ' + str(prev_cons['talla']) + ' ' + 'cm' + renglon + renglon + '- ' +
+                                                    prev_cons['objetivo'] + renglon + renglon +
+                                                    'PHQ-9: '+ prev_cons['clinimetrias']['phq9'] + ' ' + ' |   ' +
+                                                    'GAD-7: '+ prev_cons['clinimetrias']['gad7'] + ' ' + ' |   ' +
+                                                    'SADPERSONS: '+ prev_cons['clinimetrias']['sadpersons'] + ' ' + ' |   ' +
+                                                    'YOUNG: '+ prev_cons['clinimetrias']['young'] + ' ' + ' |   ' +
+                                                    'MDQ: '+ prev_cons['clinimetrias']['mdq'] + ' ' + ' |   ' +
+                                                    'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
+                                                    'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +
+                                                    '##### '+ 'ANÁLISIS: ' + renglon +prev_cons['analisis'] + renglon + renglon +
+                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- '
+        
+                            st.markdown(consulta_anterior)
+            return fechas_citas[-1]
+        
+        def last_note(consultas_previas, paciente, nota):
+            renglon = '\n'
+            fechas_citas = []
+            for i in range(consultas_previas):
+                fechas_citas.append(paciente[0]['consultas'][i]['fecha'])
+        
+            return fechas_citas[-1], len(fechas_citas)
+        
+        
+        def mongo_intial(mongodb_uri):
+            uri = mongodb_uri
+            client = MongoClient(uri)
+            db = client['expedinente_electronico']
+            pacientes = db['pacientes']
+            ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
+            return client, pacientes
+        
+        def mongo_connect(mongodb_uri):
+            uri = mongodb_uri
+            client = MongoClient(uri)
+            db = client['expedinente_electronico']
+            pacientes = db['pacientes']
+            ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
+            return client
+        
+        def gdrive_up(local_file, final_name):
+            gauth = GoogleAuth()
+            scope = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/drive.appdata']
+            gauth.service_account_json = 'service_account.json'
+            print(gauth)
+            drive = GoogleDrive(gauth)
+            file_name = local_file
+            gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
+            gfile.SetContentFile(file_name)
+            gfile.Upload()
+            print(file_name)
+            print('---------DESPUES DE LEER ARCHIVO')
+            file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
+            return file_url
