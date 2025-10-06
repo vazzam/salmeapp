@@ -19,23 +19,7 @@ import tempfile
 from pathlib import Path
 import time
 import assemblyai as aai
-import asyncio
-import websockets
-import json
-import base64
-import queue
-import threading
-import time
-import numpy as np
-import logging
-from streamlit_webrtc import (
-    webrtc_streamer, 
-    WebRtcMode, 
-    RTCConfiguration,
-    ClientSettings
-)
-
-logger = logging.getLogger(__name__)
+import pyaudio
 import queue
 
 RECORDINGS_DIR = Path("recordings")
@@ -405,10 +389,56 @@ def chat_expediente(pregunta, expediente):
 
 
 # ==================== NUEVA FUNCIÓN DE STREAMING CON ASSEMBLYAI ====================
+from av import AudioFrame  # Importación necesaria
+
+# ==================== CONFIGURACIÓN DE LOGGING ====================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)  # CORREGIDO: era 'name'
+
+# ==================== CONFIGURACIÓN INICIAL ====================
+RECORDINGS_DIR = Path("recordings")
+RECORDINGS_DIR.mkdir(exist_ok=True)
+
+load_dotenv()
+mongodb_uri = os.getenv("MONGODB_URI")
+gemini_api = os.getenv("GEMINI_API")
+deepinfra_api = os.getenv("DEEPINFRA_API")
+assemblyai_api = os.getenv("ASSEMBLYAI_API")
+
+genai.configure(api_key=gemini_api)
+aai.settings.api_key = assemblyai_api
+
+# Configurar cliente OpenAI compatible con deepinfra
+openai = OpenAI(
+    api_key=deepinfra_api,
+    base_url="https://api.deepinfra.com/v1/openai",
+)
+
+# ==================== FUNCIONES AUXILIARES ====================
+def save_audio_bytes_to_file(audio_bytes: bytes, suffix: str = ".webm") -> Path:
+    """Guarda bytes de audio a un archivo en disco con nombre único."""
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    file_path = RECORDINGS_DIR / f"rec_{ts}{suffix}"
+    with open(file_path, "wb") as f:
+        f.write(audio_bytes)
+    return file_path
+
+def convert_to_wav(input_path: Path) -> Path:
+    """Convierte webm/mp3 a wav mono 16kHz usando pydub."""
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_channels(1).set_frame_rate(16000)
+    wav_path = input_path.with_suffix(".wav")
+    audio.export(wav_path, format="wav")
+    return wav_path
+
+# ==================== FUNCIÓN PRINCIPAL DE GRABACIÓN CORREGIDA ====================
 def audio_recorder_transcriber(nota: str):
     """
     Función para transcripción en tiempo real usando WebRTC y AssemblyAI Streaming.
-    Compatible con entornos web sin acceso directo al micrófono del sistema.
+    VERSIÓN CORREGIDA Y OPTIMIZADA
     """
     
     # Inicializar claves de estado
@@ -416,10 +446,10 @@ def audio_recorder_transcriber(nota: str):
     transcription_key = f"transcripcion_{nota}"
     is_recording_key = f"is_recording_{nota}"
     full_transcript_key = f"full_transcript_{nota}"
-    processor_key = f"processor_{nota}"
     audio_queue_key = f"audio_queue_{nota}"
     websocket_key = f"websocket_{nota}"
     session_id_key = f"session_id_{nota}"
+    ws_thread_key = f"ws_thread_{nota}"
     
     # Inicializar session state
     if streaming_key not in st.session_state:
@@ -430,54 +460,137 @@ def audio_recorder_transcriber(nota: str):
         st.session_state[is_recording_key] = False
     if full_transcript_key not in st.session_state:
         st.session_state[full_transcript_key] = ""
-    if processor_key not in st.session_state:
-        st.session_state[processor_key] = None
     if audio_queue_key not in st.session_state:
-        st.session_state[audio_queue_key] = queue.Queue()
+        st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
     if websocket_key not in st.session_state:
         st.session_state[websocket_key] = None
     if session_id_key not in st.session_state:
         st.session_state[session_id_key] = None
+    if ws_thread_key not in st.session_state:
+        st.session_state[ws_thread_key] = None
     
-    # Contenedor para mostrar transcripción en tiempo real
+    # Contenedores para UI
     transcript_placeholder = st.empty()
     status_placeholder = st.empty()
     
-    async def connect_assemblyai():
-        """Conecta al WebSocket de AssemblyAI"""
+    # ==================== FUNCIONES WEBSOCKET ====================
+    def websocket_handler():
+        """
+        Manejador del WebSocket en thread separado.
+        CORREGIDO: Manejo apropiado de asyncio en thread.
+        """
         try:
-            url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
-            headers = {"Authorization": assemblyai_api}
+            # Crear nuevo event loop para este thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            ws = await websockets.connect(url, extra_headers=headers)
-            
-            # Recibir mensaje de sesión
-            session_msg = await ws.recv()
-            session_data = json.loads(session_msg)
-            
-            if session_data.get("message_type") == "SessionBegins":
-                session_id = session_data.get("session_id")
-                st.session_state[session_id_key] = session_id
-                st.session_state[websocket_key] = ws
-                status_placeholder.success(f"🎙️ Sesión iniciada - ID: {session_id[:12]}...")
-                return ws
+            # Ejecutar la conexión
+            loop.run_until_complete(websocket_connection())
             
         except Exception as e:
-            status_placeholder.error(f"❌ Error conectando: {e}")
-            return None
+            logger.error(f"Error en websocket_handler: {e}")
+            st.session_state[is_recording_key] = False
+        finally:
+            loop.close()
     
-    async def send_audio_chunk(ws, audio_data):
-        """Envía chunk de audio al WebSocket"""
-        if ws and not ws.closed:
+    async def websocket_connection():
+        """
+        Conexión y manejo del WebSocket de AssemblyAI.
+        CORREGIDO: Estructura async/await apropiada.
+        """
+        url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
+        
+        try:
+            async with websockets.connect(
+                url,
+                extra_headers={"Authorization": assemblyai_api},
+                ping_interval=20,
+                ping_timeout=10
+            ) as ws:
+                
+                # Recibir mensaje de sesión
+                session_msg = await asyncio.wait_for(ws.recv(), timeout=10.0)
+                session_data = json.loads(session_msg)
+                
+                if session_data.get("message_type") == "SessionBegins":
+                    session_id = session_data.get("session_id")
+                    st.session_state[session_id_key] = session_id
+                    st.session_state[websocket_key] = "connected"
+                    logger.info(f"Sesión AssemblyAI iniciada: {session_id}")
+                    
+                    # Crear tareas paralelas
+                    send_task = asyncio.create_task(send_audio_loop(ws))
+                    receive_task = asyncio.create_task(receive_transcripts_loop(ws))
+                    
+                    # Esperar hasta que se detenga la grabación
+                    while st.session_state[is_recording_key]:
+                        await asyncio.sleep(0.1)
+                    
+                    # Cancelar tareas
+                    send_task.cancel()
+                    receive_task.cancel()
+                    
+                    # Esperar cancelación
+                    try:
+                        await send_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    try:
+                        await receive_task
+                    except asyncio.CancelledError:
+                        pass
+                    
+                    # Terminar sesión
+                    try:
+                        await ws.send(json.dumps({"terminate_session": True}))
+                    except:
+                        pass
+                
+        except asyncio.TimeoutError:
+            logger.error("Timeout conectando a AssemblyAI")
+            status_placeholder.error("❌ Timeout de conexión")
+        except Exception as e:
+            logger.error(f"Error en websocket_connection: {e}")
+            status_placeholder.error(f"❌ Error: {str(e)}")
+        finally:
+            st.session_state[websocket_key] = None
+    
+    async def send_audio_loop(ws):
+        """
+        Loop para enviar audio desde la cola al WebSocket.
+        CORREGIDO: Manejo apropiado de la cola con timeout.
+        """
+        while st.session_state[is_recording_key]:
             try:
-                audio_b64 = base64.b64encode(audio_data).decode('utf-8')
-                await ws.send(json.dumps({"audio_data": audio_b64}))
+                # Intentar obtener audio de la cola (no bloqueante)
+                try:
+                    audio_data = st.session_state[audio_queue_key].get(timeout=0.1)
+                    
+                    # Enviar al WebSocket
+                    if audio_data and len(audio_data) > 0:
+                        audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+                        await ws.send(json.dumps({"audio_data": audio_b64}))
+                    
+                    # Marcar como procesado
+                    st.session_state[audio_queue_key].task_done()
+                    
+                except queue.Empty:
+                    # No hay audio disponible, esperar un poco
+                    await asyncio.sleep(0.05)
+                    
             except Exception as e:
                 logger.error(f"Error enviando audio: {e}")
+                await asyncio.sleep(0.1)
     
-    async def receive_transcripts(ws):
-        """Recibe transcripciones del WebSocket"""
-        while st.session_state[is_recording_key] and ws and not ws.closed:
+    async def receive_transcripts_loop(ws):
+        """
+        Loop para recibir transcripciones del WebSocket.
+        CORREGIDO: Manejo robusto de mensajes.
+        """
+        partial_text = ""
+        
+        while st.session_state[is_recording_key]:
             try:
                 message = await asyncio.wait_for(ws.recv(), timeout=1.0)
                 data = json.loads(message)
@@ -489,8 +602,11 @@ def audio_recorder_transcriber(nota: str):
                     continue
                 
                 if message_type == "FinalTranscript":
-                    # Transcripción final de un segmento
+                    # Transcripción final
                     st.session_state[full_transcript_key] += text + " "
+                    partial_text = ""
+                    
+                    # Actualizar UI
                     transcript_placeholder.text_area(
                         "📝 Transcripción en tiempo real:",
                         st.session_state[full_transcript_key],
@@ -499,11 +615,13 @@ def audio_recorder_transcriber(nota: str):
                     )
                     
                 elif message_type == "PartialTranscript":
-                    # Transcripción parcial (mientras el usuario habla)
-                    temp_text = st.session_state[full_transcript_key] + f"[{text}]"
+                    # Transcripción parcial (actualización temporal)
+                    partial_text = text
+                    temp_display = st.session_state[full_transcript_key] + f"[{partial_text}...]"
+                    
                     transcript_placeholder.text_area(
                         "📝 Transcripción en tiempo real:",
-                        temp_text,
+                        temp_display,
                         height=300,
                         key=f"live_transcript_temp_{nota}_{time.time()}"
                     )
@@ -512,88 +630,47 @@ def audio_recorder_transcriber(nota: str):
                 continue
             except Exception as e:
                 if st.session_state[is_recording_key]:
-                    logger.error(f"Error recibiendo: {e}")
+                    logger.error(f"Error recibiendo transcripción: {e}")
     
-    async def process_audio_queue(ws):
-        """Procesa la cola de audio y envía al WebSocket"""
-        while st.session_state[is_recording_key]:
-            try:
-                # Obtener audio de la cola
-                audio_data = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    st.session_state[audio_queue_key].get,
-                    True,
-                    0.1
-                )
-                
-                # Enviar al WebSocket
-                await send_audio_chunk(ws, audio_data)
-                
-            except queue.Empty:
-                await asyncio.sleep(0.1)
-            except Exception as e:
-                logger.error(f"Error procesando cola: {e}")
-    
-    def audio_frame_callback(frame):
-        """Callback para procesar frames de audio desde WebRTC"""
+    # ==================== CALLBACK DE AUDIO WEBRTC ====================
+    def audio_frame_callback(frame: AudioFrame):
+        """
+        Callback para procesar frames de audio desde WebRTC.
+        CORREGIDO: Manejo apropiado de AudioFrame.
+        """
         if not st.session_state[is_recording_key]:
             return frame
         
         try:
-            # Convertir frame a numpy array
-            sound = frame.to_ndarray() if hasattr(frame, 'to_ndarray') else frame
+            # Convertir AudioFrame a numpy array
+            sound = frame.to_ndarray()
             
-            # Si es estéreo, convertir a mono
-            if isinstance(sound, np.ndarray) and len(sound.shape) > 1:
+            # Convertir estéreo a mono si es necesario
+            if len(sound.shape) > 1:
                 sound = np.mean(sound, axis=1)
             
-            # Convertir a 16-bit PCM
-            if isinstance(sound, np.ndarray):
-                sound = np.clip(sound * 32767, -32768, 32767)
-                audio_bytes = sound.astype(np.int16).tobytes()
-            else:
-                audio_bytes = sound
+            # Normalizar y convertir a 16-bit PCM
+            sound = np.clip(sound, -1.0, 1.0)
+            audio_int16 = (sound * 32767).astype(np.int16)
+            audio_bytes = audio_int16.tobytes()
             
-            # Agregar a la cola
+            # Agregar a la cola (no bloqueante)
             try:
                 st.session_state[audio_queue_key].put_nowait(audio_bytes)
             except queue.Full:
-                pass
-                
+                # Cola llena, descartar frame más antiguo
+                try:
+                    st.session_state[audio_queue_key].get_nowait()
+                    st.session_state[audio_queue_key].put_nowait(audio_bytes)
+                except:
+                    pass
+                    
         except Exception as e:
-            logger.error(f"Error en callback de audio: {e}")
+            logger.error(f"Error en audio_frame_callback: {e}")
         
         return frame
     
-    async def streaming_handler():
-        """Manejador principal del streaming"""
-        ws = await connect_assemblyai()
-        if not ws:
-            st.session_state[is_recording_key] = False
-            return
-        
-        try:
-            # Crear tareas paralelas
-            receive_task = asyncio.create_task(receive_transcripts(ws))
-            process_task = asyncio.create_task(process_audio_queue(ws))
-            
-            # Esperar mientras se está grabando
-            while st.session_state[is_recording_key]:
-                await asyncio.sleep(0.1)
-            
-            # Cancelar tareas
-            receive_task.cancel()
-            process_task.cancel()
-            
-        finally:
-            # Cerrar WebSocket
-            if ws and not ws.closed:
-                await ws.send(json.dumps({"terminate_session": True}))
-                await ws.close()
-            
-            status_placeholder.info("🛑 Sesión de grabación finalizada")
-    
-    # Interfaz de usuario
+    # ==================== INTERFAZ DE USUARIO ====================
     st.subheader("🎙️ Transcripción en Streaming con AssemblyAI")
     
     col1, col2, col3 = st.columns([2, 2, 2])
@@ -623,50 +700,47 @@ def audio_recorder_transcriber(nota: str):
             key=f"clear_{nota}"
         )
     
-    # Lógica de botones
+    # ==================== LÓGICA DE BOTONES ====================
     if start_button:
+        # Limpiar estado previo
         st.session_state[is_recording_key] = True
         st.session_state[full_transcript_key] = ""
-        st.session_state[audio_queue_key] = queue.Queue()
+        st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
+        st.session_state[websocket_key] = None
         
-        try:
-            # Iniciar streaming handler en thread separado
-            def run_async_handler():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(streaming_handler())
-            
-            streaming_thread = threading.Thread(target=run_async_handler, daemon=True)
-            streaming_thread.start()
-            st.session_state[streaming_key] = streaming_thread
-            
-            status_placeholder.success("✅ Conectando con AssemblyAI...")
-            
-        except Exception as e:
-            st.error(f"Error al iniciar la grabación: {str(e)}")
-            st.session_state[is_recording_key] = False
+        # Iniciar thread del WebSocket
+        ws_thread = threading.Thread(target=websocket_handler, daemon=True)
+        ws_thread.start()
+        st.session_state[ws_thread_key] = ws_thread
+        
+        status_placeholder.success("✅ Iniciando grabación...")
+        st.rerun()  # Forzar actualización
     
     if stop_button:
         st.session_state[is_recording_key] = False
-        if st.session_state[websocket_key]:
-            # El websocket se cerrará en el handler
-            st.session_state[websocket_key] = None
-        status_placeholder.info("⏹️ Grabación detenida")
+        status_placeholder.info("⏹️ Deteniendo grabación...")
+        time.sleep(1)  # Dar tiempo para cerrar conexiones
+        st.rerun()
     
     if clear_button:
+        # Detener grabación si está activa
         st.session_state[is_recording_key] = False
+        time.sleep(0.5)
+        
+        # Limpiar todo
         st.session_state[full_transcript_key] = ""
         st.session_state[transcription_key] = None
-        st.session_state[audio_queue_key] = queue.Queue()
-        
-        if st.session_state[websocket_key]:
-            st.session_state[websocket_key] = None
+        st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
+        st.session_state[websocket_key] = None
+        st.session_state[session_id_key] = None
         
         transcript_placeholder.empty()
         status_placeholder.empty()
         st.success("✅ Transcripción limpiada")
+        time.sleep(1)
+        st.rerun()
     
-    # WebRTC Streamer para captura de audio
+    # ==================== WEBRTC STREAMER ====================
     if st.session_state[is_recording_key]:
         st.info("🔴 Grabando... Hable claramente hacia el micrófono")
         
@@ -680,7 +754,7 @@ def audio_recorder_transcriber(nota: str):
         
         # Iniciar WebRTC streamer
         webrtc_ctx = webrtc_streamer(
-            key=f"speech_{nota}",
+            key=f"speech_{nota}_{st.session_state.get('webrtc_counter', 0)}",
             mode=WebRtcMode.SENDONLY,
             rtc_configuration=rtc_config,
             media_stream_constraints={
@@ -689,15 +763,31 @@ def audio_recorder_transcriber(nota: str):
                     "echoCancellation": True,
                     "noiseSuppression": True,
                     "autoGainControl": True,
+                    "sampleRate": 16000,
                 }
             },
             audio_frame_callback=audio_frame_callback,
             async_processing=True,
         )
+        
+        # Mostrar estado de conexión
+        if webrtc_ctx.state.playing:
+            status_placeholder.success("🎙️ Micrófono activo - Grabando")
+        else:
+            status_placeholder.warning("⚠️ Esperando conexión del micrófono...")
     
-    # Mostrar transcripción acumulada
+    # ==================== PROCESAMIENTO POST-GRABACIÓN ====================
     if st.session_state[full_transcript_key] and not st.session_state[is_recording_key]:
         st.divider()
+        
+        # Mostrar transcripción raw
+        with st.expander("📄 Transcripción Raw", expanded=False):
+            st.text_area(
+                "Texto transcrito:",
+                st.session_state[full_transcript_key],
+                height=200,
+                key=f"raw_transcript_{nota}"
+            )
         
         col_process1, col_process2, col_process3 = st.columns([2, 2, 1])
         
@@ -726,39 +816,36 @@ def audio_recorder_transcriber(nota: str):
         if process_button and st.session_state[full_transcript_key]:
             with st.spinner(f"🤖 Procesando transcripción con {model_option}..."):
                 try:
-                    # Procesar según el modelo seleccionado
                     if model_option == "Gemini":
-                        processed_text = process_transcription_with_gemini(
+                        processed_text = resumen_transcripcion_gemini(
                             st.session_state[full_transcript_key],
                             nota
                         )
                     else:
-                        processed_text = process_transcription_with_deepinfra(
+                        processed_text = resumen_transcripcion_deepinfra(
                             st.session_state[full_transcript_key],
                             nota
                         )
                     
                     st.session_state[transcription_key] = processed_text
                     st.success("✅ Transcripción procesada exitosamente")
+                    st.rerun()
                     
                 except Exception as e:
                     st.error(f"Error al procesar con LLM: {str(e)}")
+                    logger.error(f"Error procesando con LLM: {e}")
         
         if copy_button:
             st.code(st.session_state[full_transcript_key], language=None)
+            st.info("📋 Texto listo para copiar (selecciona y copia)")
     
-    # Mostrar resultado procesado
+    # ==================== MOSTRAR RESULTADO PROCESADO ====================
     if st.session_state[transcription_key]:
         st.divider()
         st.subheader("📄 Resultado Procesado por IA")
         
         with st.expander("Ver resultado completo", expanded=True):
-            st.text_area(
-                "Nota Clínica Procesada:",
-                st.session_state[transcription_key],
-                height=400,
-                key=f"processed_result_{nota}"
-            )
+            st.markdown(st.session_state[transcription_key])
         
         # Botón de descarga
         st.download_button(
@@ -769,78 +856,67 @@ def audio_recorder_transcriber(nota: str):
             key=f"download_{nota}"
         )
     
-    return st.session_state[transcription_key]
+    return st.session_state.get(transcription_key)
 
 
-def process_transcription_with_gemini(text: str, nota: str) -> str:
-    """
-    Procesa la transcripción usando Gemini
-    """
+# ==================== FUNCIONES DE PROCESAMIENTO LLM ====================
+def resumen_transcripcion_gemini(transcripcion, nota):
+    """Procesa transcripción con Gemini"""
+    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    
     prompts = {
-        "primera": """Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento 
-        de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción 
-        es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente 
-        quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
+        "primera": f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada.
+
+TEXTO A RESUMIR:
+{transcripcion}''',
         
-        TRANSCRIPCIÓN:
-        {transcription}""",
+        "primera_paido": f'''Asume el rol de un psiquiatra infantil especializado. Redacta la evolución detallada del padecimiento del paciente basándote en la transcripción de consulta.
+
+TEXTO A RESUMIR:
+{transcripcion}''',
         
-        "primera_paido": """Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la 
-        transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), 
-        redacta la evolución detallada del padecimiento del paciente.
-        
-        TRANSCRIPCIÓN:
-        {transcription}""",
-        
-        "subsecuente": """Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución 
-        clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción 
-        de la consulta proporcionada.
-        
-        TRANSCRIPCIÓN:
-        {transcription}"""
+        "subsecuente": f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nota de evolución clínica precisa y concisa basándote en la transcripción de la consulta.
+
+TEXTO A RESUMIR:
+{transcripcion}'''
     }
     
-    prompt = prompts.get(nota, prompts["subsecuente"]).format(transcription=text)
+    prompt = prompts.get(nota, prompts["subsecuente"])
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         logger.error(f"Error con Gemini: {e}")
-        raise e
+        raise
 
 
-def process_transcription_with_deepinfra(text: str, nota: str) -> str:
-    """
-    Procesa la transcripción usando DeepInfra
-    """
+def resumen_transcripcion_deepinfra(transcripcion, nota):
+    """Procesa transcripción con DeepInfra"""
     prompts = {
-        "primera": """Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento 
-        basándote en la transcripción proporcionada. Identifica correctamente quién habla en cada intervención.
+        "primera": f'''Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento basándote en la transcripción proporcionada.
+
+TRANSCRIPCIÓN:
+{transcripcion}''',
         
-        TRANSCRIPCIÓN:
-        {transcription}""",
+        "primera_paido": f'''Asume el rol de un psiquiatra infantil. Redacta la evolución detallada del padecimiento del paciente.
+
+TRANSCRIPCIÓN:
+{transcripcion}''',
         
-        "primera_paido": """Asume el rol de un psiquiatra infantil. Con base en la transcripción de consulta, 
-        redacta la evolución detallada del padecimiento del paciente.
-        
-        TRANSCRIPCIÓN:
-        {transcription}""",
-        
-        "subsecuente": """Redacta una nota de evolución clínica basándote en la transcripción de la consulta.
-        
-        TRANSCRIPCIÓN:
-        {transcription}"""
+        "subsecuente": f'''Redacta una nota de evolución clínica basándote en la transcripción de la consulta.
+
+TRANSCRIPCIÓN:
+{transcripcion}'''
     }
     
-    prompt = prompts.get(nota, prompts["subsecuente"]).format(transcription=text)
+    prompt = prompts.get(nota, prompts["subsecuente"])
     
     try:
         response = openai.chat.completions.create(
             model='Qwen/Qwen2.5-72B-Instruct',
             messages=[
-                {"role": "system", "content": "Eres un psiquiatra especializado con experiencia en redacción de notas clínicas."},
+                {"role": "system", "content": "Eres un psiquiatra especializado."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -848,82 +924,13 @@ def process_transcription_with_deepinfra(text: str, nota: str) -> str:
         )
         
         result = response.choices[0].message.content
-        # Limpiar tags de pensamiento si existen
         result = re.sub(r'<think>[\s\S]*?</think>', '', result).strip()
-        
         return result
         
     except Exception as e:
         logger.error(f"Error con DeepInfra: {e}")
-        raise e
+        raise
 
-# Función alternativa que mantiene compatibilidad con código anterior
-def resumen_transcripcion_gemini(transcripcion, nota):
-    """
-    Función de compatibilidad que usa Gemini directamente.
-    Mantiene la interfaz original para código legacy.
-    """
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    
-    if nota == "primera":
-        prompt = f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    elif nota == 'primera_paido':
-        prompt = f'''Instrucciones Generales
-Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    else:
-        prompt = f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    response = model.generate_content(prompt)
-    return response.text
-
-
-def resumen_transcripcion_deepinfra(transcripcion, nota):
-    """
-    Función de compatibilidad que usa DeepInfra directamente.
-    Mantiene la interfaz original para código legacy.
-    """
-    llm_model = 'Qwen/Qwen3-32B'
-    
-    if nota == "primera":
-        prompt = f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    elif nota == 'primera_paido':
-        prompt = f'''Instrucciones Generales
-Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y coherente del relato clínico.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    else:
-        prompt = f'''INSTRUCCIONES: Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para asegurar una redacción precisa y coherente.
-
-TEXTO A RESUMIR:
-{transcripcion}'''
-    
-    response = openai.chat.completions.create(
-        model=llm_model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=4000
-    )
-    
-    output_text = response.choices[0].message.content
-    output_text = re.sub(r'<think>[\s\S]*?</think>', '', output_text).strip()
-    return output_text
 
 
 # Función wrapper para mantener compatibilidad con código antiguo
@@ -1046,7 +1053,7 @@ def unidecode_except(string):
         if c in exceptions:
             replaced_string += c
         else:
-            replaced_string += unidecode(c)
+            replaced_string += un            replaced_string += unidecode(c)
 
             return replaced_string
         
@@ -1126,7 +1133,7 @@ def unidecode_except(string):
                                                     'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
                                                     'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +
                                                     '##### '+ 'ANÁLISIS: ' + renglon +prev_cons['analisis'] + renglon + renglon +
-                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- ')
+                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- '
         
                             st.markdown(consulta_anterior)
             return fechas_citas[-1]
