@@ -20,6 +20,11 @@ from pathlib import Path
 import time
 import assemblyai as aai
 import queue
+from streamlit_webrtc import (
+    webrtc_streamer,
+    WebRtcMode,
+    RTCConfiguration,
+)
 # ==================== CONFIGURACIÓN DE LOGGING ====================
 logging.basicConfig(
     level=logging.INFO,
