@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 import time
 import assemblyai as aai
-import pyaudio
+
 import queue
 
 RECORDINGS_DIR = Path("recordings")
