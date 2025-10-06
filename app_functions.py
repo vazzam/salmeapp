@@ -1,1098 +1,755 @@
-import random
-from datetime import date, datetime
-import streamlit as st
-from unidecode import unidecode
-from pymongo import MongoClient
-from pydrive.auth import GoogleAuth
-from pydrive.drive import GoogleDrive
-from openai import OpenAI
-import google.generativeai as genai
-import re
-import threading
-import io
-import wave
-from pydub import AudioSegment
 import os
-from dotenv import load_dotenv
-import tempfile
-from pathlib import Path
-import time
-import assemblyai as aai
-import asyncio
-import websockets
 import json
 import base64
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import av
-import numpy as np
-from typing import Optional, Dict, Any
+import asyncio
+import threading
 import queue
 import logging
-# Configuración de logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from datetime import datetime
+from typing import Optional, Dict, Any, Callable
+from pathlib import Path
+import time
 
-# Crear directorios necesarios
-RECORDINGS_DIR = Path("recordings")
-RECORDINGS_DIR.mkdir(exist_ok=True)
+import streamlit as st
+import numpy as np
+import av
+from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
+import websockets
+from openai import OpenAI
+import google.generativeai as genai
+from dotenv import load_dotenv
+
+# ==================== CONFIGURACIÓN ====================
+
+# Configuración de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Cargar variables de entorno
 load_dotenv()
-mongodb_uri = os.getenv("MONGODB_URI")
-gemini_api = os.getenv("GEMINI_API")
-deepinfra_api = os.getenv("DEEPINFRA_API")
-assemblyai_api = os.getenv("ASSEMBLYAI_API")
+
+# Validar variables de entorno requeridas
+REQUIRED_ENV_VARS = ["ASSEMBLYAI_API", "DEEPINFRA_API", "GEMINI_API"]
+for var in REQUIRED_ENV_VARS:
+    if not os.getenv(var):
+        st.error(f"❌ Variable de entorno {var} no configurada")
+        st.stop()
 
 # Configuración de APIs
-genai.configure(api_key=gemini_api)
-aai.settings.api_key = assemblyai_api
+ASSEMBLYAI_API_KEY = os.getenv("ASSEMBLYAI_API")
+DEEPINFRA_API_KEY = os.getenv("DEEPINFRA_API")
+GEMINI_API_KEY = os.getenv("GEMINI_API")
+
+# Configurar Gemini
+genai.configure(api_key=GEMINI_API_KEY)
 
 # Cliente OpenAI para DeepInfra
-openai = OpenAI(
-    api_key=deepinfra_api,
+deepinfra_client = OpenAI(
+    api_key=DEEPINFRA_API_KEY,
     base_url="https://api.deepinfra.com/v1/openai",
 )
 
-# Configuración WebRTC para STUN/TURN servers
+# Configuración WebRTC
 RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    {"iceServers": [
+        {"urls": ["stun:stun.l.google.com:19302"]},
+        {"urls": ["stun:stun1.l.google.com:19302"]},
+    ]}
 )
 
-def rand_ta():
-    ta = f'{random.randint(100,130)}/{random.randint(66,78)}'
-    return ta
+# ==================== CLASES PRINCIPALES ====================
 
-def procesar_texto(texto):
-    patron = r"^```(.*?)```$"
-    coincidencia = re.search(patron, texto, re.DOTALL)
-    return coincidencia.group(1) if coincidencia else texto
-
-def stored_data(name):
-    data = {
-            'escalas': ['RASS.pdf','bush y francis.pdf', 'simpson angus.pdf', 'gad7.pdf', 'sad persons.pdf', 'young.pdf', 'fab.pdf', 'assist.pdf', 'dimensional.pdf', 'psp.pdf', 'yesavage.pdf', 'phq9.pdf', 'Escala dimensional de psicosis.pdf', 'moca.pdf', 'moriski-8.pdf', 'mdq.pdf', 'calgary.pdf', 'eeag.pdf', 'madrs.pdf'],
-            'gpc': ['SSA-222-09 Diagnostico y tratamiento de la esquizofrenia', 'IMSS 170-09 Diagnostico y tratamiento del trastorno bipolar',
-            'IMSS-392-10 Diagnostico y tratamiento del trastorno de ansiedad en el adulto', 'APA- Practice guideline for the treatment of patients with borderline personality disorder',
-            'IMSS-161-09 Diagnostico y tratamiento del trastorno depresivo en el adulto', 'IMSS-528-12 Diagnostico y manejo de los trastornos del espectro autista',
-            'IMSS-515-11 Diagnostico y manejo del estres post traumatico', 'SS-343-16 Diagnostico y tratamiento del consumo de marihuana en adultos en primer y segundo nivel de atención',
-            'SS-023-08 Prevención, detección y consejeria en adicciones para adolescentes y adultos.', 'IMSS-385-10 Diagnostico y tratamiento de los trastornos del Sueño',
-            'SS-666-14 Prevención, diagnóstico y manejo de la depresión prenatal', 'SS-294-10 Detección y atención de violencia de pareja en adulto',
-            'ss-210-09 Diagnostico y tratamiento de epilepsia en el adulto',
-            'IMSS-465-11 Prevención, diagnóstico y tratamiento del DELIRIUM en el adulto mayor hospitalizado'
-            ]
-        }
-    return data[name]
-
-client = OpenAI(
-    api_key=deepinfra_api,
-    base_url="https://api.deepinfra.com/v1/openai",
-)
-
-html_ex = """
-```html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Evolución de Escalas Clinimétricas y Peso</title>
-    <style>
-        body {
-            background-color: transparent;
-            margin: 0;
-            padding: 40px;
-            font-family: 'Segoe UI', Arial, sans-serif;
-            color: #fff;
-        }
-        .frame {
-            background: linear-gradient(145deg, rgba(44, 44, 44, 0.9), rgba(37, 37, 37, 0.9));
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
-            padding: 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            max-width: 2100px;
-            margin: 0 auto;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-        }
-        .chart-container {
-            width: 400px;
-            height: 300px;
-            background: transparent;
-            position: relative;
-            border-radius: 12px;
-            padding: 15px;
-            transition: all 0.3s ease;
-            flex-shrink: 0;
-        }
-        .chart-container:hover {
-            transform: scale(1.02);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
-        }
-        canvas {
-            background: transparent !important;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar {
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(51, 51, 51, 0.5);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(85, 85, 85, 0.7);
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(119, 119, 119, 0.9);
-        }
-    </style>
-</head>
-<body>
-    <div class="frame">
-        <div class="chart-container">
-            <canvas id="phq9Chart"></canvas>
-        </div>
-        <div class="chart-container">
-            <canvas id="gad7Chart"></canvas>
-        </div>
-        <div class="chart-container">
-            <canvas id="gafChart"></canvas>
-        </div>
-        <div class="chart-container">
-            <canvas id="mdqChart"></canvas>
-        </div>
-        <div class="chart-container">
-            <canvas id="weightChart"></canvas>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const chartConfig = {
-            type: 'line',
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.05)',
-                            borderColor: 'rgba(255, 255, 255, 0.2)'
-                        },
-                        ticks: {
-                            color: '#e0e0e0',
-                            font: { size: 12, weight: '500' }
-                        }
-                    },
-                    y: {
-                        grid: {
-                            color: 'rgba(255, 255, 255, 0.05)',
-                            borderColor: 'rgba(255, 255, 255, 0.2)'
-                        },
-                        ticks: {
-                            color: '#e0e0e0',
-                            font: { size: 12, weight: '500' }
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: '#ffffff',
-                            font: { size: 16, weight: '600' },
-                            padding: 20,
-                            boxWidth: 20,
-                            usePointStyle: true
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: 'rgba(30, 30, 30, 0.9)',
-                        titleFont: { size: 14, weight: '600' },
-                        bodyFont: { size: 12 },
-                        cornerRadius: 10,
-                        padding: 12,
-                        borderColor: 'rgba(255, 255, 255, 0.1)',
-                        borderWidth: 1
-                    }
-                },
-                elements: {
-                    line: {
-                        tension: 0.5,
-                        borderWidth: 3,
-                        fill: false,
-                        spanGaps: true
-                    },
-                    point: {
-                        radius: 6,
-                        hoverRadius: 9,
-                        backgroundColor: '#fff',
-                        borderWidth: 2
-                    }
-                },
-                animation: {
-                    duration: 1800,
-                    easing: 'easeOutExpo'
-                }
-            }
-        };
-
-        const data = {
-            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-            phq9: [10, null, 8, null, 6, 5],
-            gad7: [8, 9, null, 6, null, 4],
-            gaf: [60, null, 65, 70, null, 75],
-            mdq: [null, 5, 3, null, 3, 2],
-            weight: [70, 71, null, 70, null, 69]
-        };
-
-        new Chart(document.getElementById('phq9Chart'), {
-            ...chartConfig,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'PHQ-9',
-                    data: data.phq9,
-                    borderColor: '#ff6b6b',
-                    pointBackgroundColor: '#ff6b6b',
-                    pointBorderColor: '#fff',
-                    backgroundColor: 'transparent'
-                }]
-            }
-        });
-
-        new Chart(document.getElementById('gad7Chart'), {
-            ...chartConfig,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'GAD-7',
-                    data: data.gad7,
-                    borderColor: '#4ecdc4',
-                    pointBackgroundColor: '#4ecdc4',
-                    pointBorderColor: '#fff',
-                    backgroundColor: 'transparent'
-                }]
-            }
-        });
-
-        new Chart(document.getElementById('gafChart'), {
-            ...chartConfig,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'GAF',
-                    data: data.gaf,
-                    borderColor: '#45b7d1',
-                    pointBackgroundColor: '#45b7d1',
-                    pointBorderColor: '#fff',
-                    backgroundColor: 'transparent'
-                }]
-            }
-        });
-
-        new Chart(document.getElementById('mdqChart'), {
-            ...chartConfig,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'MDQ',
-                    data: data.mdq,
-                    borderColor: '#96c93d',
-                    pointBackgroundColor: '#96c93d',
-                    pointBorderColor: '#fff',
-                    backgroundColor: 'transparent'
-                }]
-            }
-        });
-
-        new Chart(document.getElementById('weightChart'), {
-            ...chartConfig,
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'Peso (kg)',
-                    data: data.weight,
-                    borderColor: '#ffa502',
-                    pointBackgroundColor: '#ffa502',
-                    pointBorderColor: '#fff',
-                    backgroundColor: 'transparent'
-                }]
-            }
-        });
-    </script>
-</body>
-</html>```"""
-
-def resumen_paciente(datos):
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y elabora un resumen conciso del expediente clínico proporcionado,
-                                        seguido del código HTML para visualizar gráficamente la evolución de las escalas clinimétricas registradas.
-                                        RESUMEN DE EXPEDIENTE CLÍNICO
-                                          - Presenta la información en una tabla con las columnas: Fecha, Evolución y síntomas, Hallazgos clínicos, Análisis médico y Tratamiento.
-                                          - Utiliza terminología médica apropiada manteniendo un tono profesional.
-                                          - Enfatiza y detalla más extensamente la última consulta, mientras que las anteriores deberán ser más breves y concisas.
-
-                                          ESTRUCTURA REQUERIDA:
-                                          1. Encabezado: Nombre completo, edad y ocupación del paciente
-                                          2. Motivo de la consulta inicial
-                                          3. Antecedentes médicos relevantes: Historia médica previa significativa para el caso actual
-                                          4. Tabla cronológica de consultas que incluya para cada visita:
-                                          - Fecha exacta
-                                          - Síntomas reportados (con citas textuales del paciente cuando estén disponibles)
-                                          - Resumen muy breve de los hallazgos más relevantes durante la consulta
-                                          - Resumen del análisis médico de la consulta
-                                          - Plan de tratamiento y recomendaciones
-                                          5. Utiliza escritura markdown para resaltar títulos y subtítulos
-
-                                          EXPEDIENTE CLÍNICO:
-                                          {datos}
-
-                                        GRÁFICAS DE CLINIMETRÍAS
-
-                                        Si el expediente contiene valores registrados de escalas de valoración (GAF, PHQ-9, GAD-7, MDQ, etc.),
-                                        genera código HTML para visualizar la evolución de los puntajes de las escalas clinimétricas registradas junto con el peso del paciente.
-                                        Crea una gráfica individual para cada conjunto de valores y muéstralas dentro de un marco que contenga todas las gráficas generadas.
-                                        Solo incluye gráficos de los parámetros con más de 2 valores registrados.
-                                        La escala de cada gráfica debe comenzar en 0 y terminar en el valor máximo de la                                         escala correspondiente.
-                                        Si faltan valores entre dos mediciones registradas, la línea debe unir directamente los puntos existentes sin considerar los valores ausentes como 0.
-                                        Evita explicaciones adicionales sobre el código html o las gráficas generadas.
-                                        Usa la siguiente plantilla HTML como base:
-                                        {html_ex}
-                                        '''
-                                    )
-    html_code = re.search(r'```html(.*?)```', response.text, re.DOTALL)
-    if html_code:
-        html_code = html_code.group(1).strip()
-    else:
-        html_code = ""
-
-    resumen = re.sub(r'```html(.*?)```', '', response.text, flags=re.DOTALL).strip()
-    resumen = re.sub(r'```markdown(.*?)', '', resumen, flags=re.DOTALL).strip()
-
-    return resumen, html_code
-
-def chat_expediente(pregunta, expediente):
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    response = model.generate_content(f'''INSTRUCCIONES: Actúa como un especialista médico y responde la pregunta sobre el expediente clínico proporcionado, siguiendo estrictamente la estructura solicitada.
-
-                                        FORMATO:
-                                        - Presenta la información de una forma breve, precisa y concisa con un formato de fácil lectura e interpretación en pocas líneas
-                                        - Utiliza terminología médica apropiada manteniendo un tono profesional.
-                                        PREGUNTA:
-                                        {pregunta}
-                                        EXPEDIENTE CLÍNICO:
-                                        {expediente}'''
-                                    )
-    respuesta = response.text
-    return respuesta
-
-
-# ==================== NUEVA FUNCIÓN DE STREAMING CON ASSEMBLYAI ====================
-class AudioStreamProcessor:
-    """Procesador de audio para streaming con AssemblyAI"""
+class AssemblyAIStreamingClient:
+    """
+    Cliente para manejar streaming de transcripción con AssemblyAI
+    con reconexión automática y manejo de errores robusto
+    """
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.transcriber = None
-        self.audio_queue = queue.Queue()
-        self.transcript_queue = queue.Queue()
-        self.is_running = False
         self.websocket = None
         self.session_id = None
+        self.is_running = False
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = 5
+        self.reconnect_delay = 2
+        self.transcript_callback = None
+        self.error_callback = None
         
-    async def connect_websocket(self):
-        """Conecta al websocket de AssemblyAI para streaming"""
-        url = f"wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
-        
-        extra_headers = {
-            "Authorization": self.api_key
-        }
-        
+    async def connect(self) -> bool:
+        """Establece conexión con el WebSocket de AssemblyAI"""
         try:
-            self.websocket = await websockets.connect(url, extra_headers=extra_headers)
+            # URL del WebSocket con sample rate de 16kHz
+            url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
             
-            # Recibir mensaje de bienvenida
-            session_begins = await self.websocket.recv()
-            session_data = json.loads(session_begins)
-            self.session_id = session_data.get('session_id')
-            logger.info(f"Sesión iniciada: {self.session_id}")
+            # Headers de autenticación
+            headers = {"Authorization": self.api_key}
             
-            return True
+            # Conectar al WebSocket
+            self.websocket = await websockets.connect(
+                url, 
+                extra_headers=headers,
+                ping_interval=20,
+                ping_timeout=10
+            )
+            
+            # Recibir mensaje de sesión
+            session_msg = await self.websocket.recv()
+            session_data = json.loads(session_msg)
+            
+            if session_data.get("message_type") == "SessionBegins":
+                self.session_id = session_data.get("session_id")
+                self.is_running = True
+                self.reconnect_attempts = 0
+                logger.info(f"✅ Conectado a AssemblyAI - Sesión: {self.session_id}")
+                return True
+            
+            return False
             
         except Exception as e:
-            logger.error(f"Error conectando al websocket: {e}")
+            logger.error(f"❌ Error conectando a AssemblyAI: {e}")
+            if self.error_callback:
+                self.error_callback(f"Error de conexión: {e}")
             return False
     
-    async def send_audio(self, audio_data: bytes):
-        """Envía audio al websocket de AssemblyAI"""
-        if self.websocket and not self.websocket.closed:
-            # Convertir audio a base64
+    async def send_audio(self, audio_data: bytes) -> bool:
+        """Envía datos de audio al WebSocket"""
+        if not self.websocket or self.websocket.closed:
+            return False
+            
+        try:
+            # Codificar audio en base64
             audio_b64 = base64.b64encode(audio_data).decode('utf-8')
             
             # Crear mensaje JSON
-            message = json.dumps({
-                "audio_data": audio_b64
-            })
+            message = json.dumps({"audio_data": audio_b64})
             
-            try:
-                await self.websocket.send(message)
-            except Exception as e:
-                logger.error(f"Error enviando audio: {e}")
+            # Enviar al WebSocket
+            await self.websocket.send(message)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error enviando audio: {e}")
+            return False
     
     async def receive_transcripts(self):
-        """Recibe transcripciones del websocket"""
+        """Recibe transcripciones del WebSocket"""
         while self.is_running and self.websocket and not self.websocket.closed:
             try:
-                message = await asyncio.wait_for(self.websocket.recv(), timeout=0.5)
-                data = json.loads(message)
+                # Recibir mensaje con timeout
+                message = await asyncio.wait_for(
+                    self.websocket.recv(), 
+                    timeout=30.0
+                )
                 
-                if data.get('message_type') == 'FinalTranscript':
-                    text = data.get('text', '')
-                    if text:
-                        self.transcript_queue.put({
-                            'type': 'final',
-                            'text': text,
-                            'timestamp': datetime.now()
+                data = json.loads(message)
+                message_type = data.get("message_type")
+                
+                # Procesar diferentes tipos de mensajes
+                if message_type == "FinalTranscript":
+                    text = data.get("text", "")
+                    if text and self.transcript_callback:
+                        await self.transcript_callback({
+                            "type": "final",
+                            "text": text,
+                            "confidence": data.get("confidence", 0),
+                            "timestamp": datetime.now()
                         })
                         
-                elif data.get('message_type') == 'PartialTranscript':
-                    text = data.get('text', '')
-                    if text:
-                        self.transcript_queue.put({
-                            'type': 'partial',
-                            'text': text,
-                            'timestamp': datetime.now()
+                elif message_type == "PartialTranscript":
+                    text = data.get("text", "")
+                    if text and self.transcript_callback:
+                        await self.transcript_callback({
+                            "type": "partial",
+                            "text": text,
+                            "timestamp": datetime.now()
                         })
                         
+                elif message_type == "SessionTerminated":
+                    logger.info("Sesión terminada por AssemblyAI")
+                    break
+                    
             except asyncio.TimeoutError:
+                # Timeout normal, continuar
                 continue
+                
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning("Conexión WebSocket cerrada")
+                await self.handle_reconnect()
+                
             except Exception as e:
                 logger.error(f"Error recibiendo transcripción: {e}")
-                break
+                if self.error_callback:
+                    self.error_callback(f"Error de recepción: {e}")
     
-    async def close(self):
-        """Cierra la conexión websocket"""
+    async def handle_reconnect(self):
+        """Maneja la reconexión automática"""
+        if self.reconnect_attempts >= self.max_reconnect_attempts:
+            logger.error("Máximo de intentos de reconexión alcanzado")
+            self.is_running = False
+            return
+        
+        self.reconnect_attempts += 1
+        wait_time = self.reconnect_delay * self.reconnect_attempts
+        
+        logger.info(f"Intentando reconectar ({self.reconnect_attempts}/{self.max_reconnect_attempts}) en {wait_time}s...")
+        await asyncio.sleep(wait_time)
+        
+        if await self.connect():
+            logger.info("✅ Reconexión exitosa")
+        else:
+            await self.handle_reconnect()
+    
+    async def disconnect(self):
+        """Cierra la conexión limpiamente"""
         self.is_running = False
         
         if self.websocket and not self.websocket.closed:
-            # Enviar mensaje de finalización
-            await self.websocket.send(json.dumps({"terminate_session": True}))
-            await self.websocket.close()
-            
+            try:
+                # Enviar mensaje de terminación
+                await self.websocket.send(json.dumps({"terminate_session": True}))
+                await self.websocket.close()
+            except Exception as e:
+                logger.error(f"Error al cerrar conexión: {e}")
+        
         self.websocket = None
         self.session_id = None
+        logger.info("Desconectado de AssemblyAI")
 
-def audio_streaming_transcriber(nota: str):
+
+class AudioProcessor:
     """
-    Función principal para transcripción en tiempo real usando AssemblyAI
-    con captura de audio desde el navegador.
+    Procesador de audio que maneja la captura desde WebRTC
+    y el envío a AssemblyAI
     """
     
-    # Inicializar claves de estado
-    streaming_key = f"streaming_{nota}"
-    transcription_key = f"transcripcion_{nota}"
-    is_recording_key = f"is_recording_{nota}"
-    full_transcript_key = f"full_transcript_{nota}"
-    processor_key = f"processor_{nota}"
-    audio_buffer_key = f"audio_buffer_{nota}"
-    
-    # Inicializar session state
-    if processor_key not in st.session_state:
-        st.session_state[processor_key] = None
-    if transcription_key not in st.session_state:
-        st.session_state[transcription_key] = None
-    if is_recording_key not in st.session_state:
-        st.session_state[is_recording_key] = False
-    if full_transcript_key not in st.session_state:
-        st.session_state[full_transcript_key] = ""
-    if audio_buffer_key not in st.session_state:
-        st.session_state[audio_buffer_key] = []
-    
-    st.subheader("🎙️ Transcripción en Streaming con AssemblyAI")
-    
-    # Contenedores para la UI
-    status_container = st.container()
-    transcript_container = st.container()
-    controls_container = st.container()
-    
-    with controls_container:
-        col1, col2, col3 = st.columns([2, 2, 2])
+    def __init__(self, assemblyai_client: AssemblyAIStreamingClient):
+        self.client = assemblyai_client
+        self.audio_buffer = []
+        self.buffer_size = 8  # Tamaño del buffer antes de enviar
+        self.sample_rate = 16000
+        self.is_processing = False
         
-        with col1:
-            start_btn = st.button(
-                "🎙️ Iniciar Grabación",
-                use_container_width=True,
-                type="primary",
-                disabled=st.session_state[is_recording_key]
-            )
-        
-        with col2:
-            stop_btn = st.button(
-                "⏹️ Detener Grabación",
-                use_container_width=True,
-                type="secondary",
-                disabled=not st.session_state[is_recording_key]
-            )
-        
-        with col3:
-            clear_btn = st.button(
-                "🗑️ Limpiar",
-                use_container_width=True
-            )
-    
-    # Callback para procesar audio desde WebRTC
-    def audio_frame_callback(frame: av.AudioFrame) -> av.AudioFrame:
-        """Procesa frames de audio desde WebRTC"""
-        if st.session_state[is_recording_key]:
+    def process_audio_frame(self, frame: av.AudioFrame) -> av.AudioFrame:
+        """
+        Callback para procesar frames de audio desde WebRTC
+        """
+        if not self.is_processing:
+            return frame
+            
+        try:
             # Convertir frame a numpy array
             sound = frame.to_ndarray()
             
             # Si es estéreo, convertir a mono
             if len(sound.shape) > 1:
-                sound = np.mean(sound, axis=1)
+                sound = np.mean(sound, axis=0)
             
-            # Convertir a bytes (16-bit PCM)
-            audio_bytes = (sound * 32767).astype(np.int16).tobytes()
+            # Normalizar y convertir a 16-bit PCM
+            sound = np.clip(sound * 32767, -32768, 32767)
+            audio_bytes = sound.astype(np.int16).tobytes()
             
             # Agregar al buffer
-            st.session_state[audio_buffer_key].append(audio_bytes)
+            self.audio_buffer.append(audio_bytes)
             
-            # Si el buffer es suficientemente grande, procesar
-            if len(st.session_state[audio_buffer_key]) >= 10:  # ~100ms de audio
-                combined_audio = b''.join(st.session_state[audio_buffer_key])
-                st.session_state[audio_buffer_key] = []
+            # Enviar cuando el buffer esté lleno
+            if len(self.audio_buffer) >= self.buffer_size:
+                self.send_buffered_audio()
                 
-                # Enviar al procesador si está activo
-                if st.session_state[processor_key]:
-                    asyncio.create_task(
-                        st.session_state[processor_key].send_audio(combined_audio)
-                    )
-        
+        except Exception as e:
+            logger.error(f"Error procesando frame de audio: {e}")
+            
         return frame
     
-    # Iniciar grabación
-    if start_btn:
-        st.session_state[is_recording_key] = True
-        st.session_state[full_transcript_key] = ""
-        st.session_state[audio_buffer_key] = []
-        
-        # Crear procesador de audio
-        processor = AudioStreamProcessor(assemblyai_api)
-        st.session_state[processor_key] = processor
-        
-        # Iniciar conexión asíncrona
-        async def start_streaming():
-            processor.is_running = True
+    def send_buffered_audio(self):
+        """Envía el audio almacenado en el buffer"""
+        if not self.audio_buffer:
+            return
             
-            # Conectar al websocket
-            if await processor.connect_websocket():
-                with status_container:
-                    st.success(f"✅ Conectado - Sesión: {processor.session_id}")
-                
-                # Iniciar recepción de transcripciones
-                await processor.receive_transcripts()
+        # Combinar todos los chunks del buffer
+        combined_audio = b''.join(self.audio_buffer)
+        self.audio_buffer = []
+        
+        # Enviar de forma asíncrona
+        asyncio.create_task(self.client.send_audio(combined_audio))
+    
+    def start(self):
+        """Inicia el procesamiento de audio"""
+        self.is_processing = True
+        logger.info("Procesamiento de audio iniciado")
+    
+    def stop(self):
+        """Detiene el procesamiento de audio"""
+        self.is_processing = False
+        # Enviar cualquier audio restante en el buffer
+        self.send_buffered_audio()
+        logger.info("Procesamiento de audio detenido")
+
+
+class TranscriptionManager:
+    """
+    Gestor principal de transcripciones que coordina
+    la captura de audio, transcripción y procesamiento con LLM
+    """
+    
+    def __init__(self):
+        self.assemblyai_client = AssemblyAIStreamingClient(ASSEMBLYAI_API_KEY)
+        self.audio_processor = AudioProcessor(self.assemblyai_client)
+        self.transcript_queue = queue.Queue()
+        self.full_transcript = []
+        self.is_active = False
+        self.stream_task = None
+        
+        # Configurar callbacks
+        self.assemblyai_client.transcript_callback = self.on_transcript_received
+        self.assemblyai_client.error_callback = self.on_error
+    
+    async def on_transcript_received(self, transcript_data: Dict[str, Any]):
+        """Callback cuando se recibe una transcripción"""
+        self.transcript_queue.put(transcript_data)
+        
+        # Si es transcripción final, agregarla al texto completo
+        if transcript_data["type"] == "final":
+            self.full_transcript.append(transcript_data["text"])
+            
+            # Procesar con LLM si está configurado para hacerlo
+            if st.session_state.get("auto_process_llm", False):
+                asyncio.create_task(self.process_with_llm(transcript_data["text"]))
+    
+    def on_error(self, error_msg: str):
+        """Callback para errores"""
+        st.error(f"⚠️ {error_msg}")
+    
+    async def start_streaming(self):
+        """Inicia el streaming de transcripción"""
+        try:
+            # Conectar a AssemblyAI
+            if not await self.assemblyai_client.connect():
+                st.error("No se pudo conectar a AssemblyAI")
+                return False
+            
+            self.is_active = True
+            self.audio_processor.start()
+            
+            # Iniciar recepción de transcripciones
+            self.stream_task = asyncio.create_task(
+                self.assemblyai_client.receive_transcripts()
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error iniciando streaming: {e}")
+            st.error(f"Error: {e}")
+            return False
+    
+    async def stop_streaming(self):
+        """Detiene el streaming de transcripción"""
+        self.is_active = False
+        self.audio_processor.stop()
+        
+        # Cancelar tarea de streaming
+        if self.stream_task:
+            self.stream_task.cancel()
+        
+        # Desconectar de AssemblyAI
+        await self.assemblyai_client.disconnect()
+    
+    async def process_with_llm(self, text: str, model: str = "gemini"):
+        """
+        Procesa el texto transcrito con un modelo LLM
+        """
+        try:
+            if model == "gemini":
+                result = await self.process_with_gemini(text)
             else:
-                with status_container:
-                    st.error("❌ Error al conectar con AssemblyAI")
-                st.session_state[is_recording_key] = False
-        
-        # Ejecutar en thread separado
-        threading.Thread(
-            target=lambda: asyncio.run(start_streaming()),
-            daemon=True
-        ).start()
-    
-    # Detener grabación
-    if stop_btn:
-        st.session_state[is_recording_key] = False
-        
-        if st.session_state[processor_key]:
-            processor = st.session_state[processor_key]
+                result = await self.process_with_deepinfra(text)
             
-            # Cerrar conexión
-            async def stop_streaming():
-                await processor.close()
+            # Agregar resultado a la cola de respuestas
+            if "llm_responses" not in st.session_state:
+                st.session_state.llm_responses = []
+            st.session_state.llm_responses.append(result)
             
-            asyncio.run(stop_streaming())
-            st.session_state[processor_key] = None
+            return result
             
-        with status_container:
-            st.info("⏹️ Grabación detenida")
+        except Exception as e:
+            logger.error(f"Error procesando con LLM: {e}")
+            return None
     
-    # Limpiar
-    if clear_btn:
-        st.session_state[is_recording_key] = False
-        st.session_state[full_transcript_key] = ""
-        st.session_state[transcription_key] = None
-        st.session_state[audio_buffer_key] = []
+    async def process_with_gemini(self, text: str) -> str:
+        """Procesa texto con Gemini"""
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        if st.session_state[processor_key]:
-            processor = st.session_state[processor_key]
-            asyncio.run(processor.close())
-            st.session_state[processor_key] = None
+        prompt = f"""
+        Analiza el siguiente fragmento de transcripción de una consulta médica 
+        y extrae los puntos clave relevantes:
         
-        with status_container:
-            st.success("✅ Limpiado")
-        st.rerun()
-    
-    # WebRTC Streamer para captura de audio
-    if st.session_state[is_recording_key]:
-        webrtc_ctx = webrtc_streamer(
-            key=f"speech-{nota}",
-            mode=WebRtcMode.SENDONLY,
-            rtc_configuration=RTC_CONFIGURATION,
-            media_stream_constraints={"video": False, "audio": True},
-            audio_frame_callback=audio_frame_callback,
-            async_processing=True,
+        {text}
+        
+        Proporciona un resumen breve y estructurado.
+        """
+        
+        response = await asyncio.to_thread(
+            model.generate_content, 
+            prompt
         )
         
-        # Actualizar transcripción en tiempo real
-        if st.session_state[processor_key]:
-            processor = st.session_state[processor_key]
+        return response.text
+    
+    async def process_with_deepinfra(self, text: str) -> str:
+        """Procesa texto con DeepInfra"""
+        
+        response = await asyncio.to_thread(
+            deepinfra_client.chat.completions.create,
+            model='Qwen/Qwen2.5-72B-Instruct',
+            messages=[
+                {
+                    "role": "system", 
+                    "content": "Eres un asistente médico especializado en análisis de consultas."
+                },
+                {
+                    "role": "user", 
+                    "content": f"Analiza: {text}"
+                }
+            ],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content
+    
+    def get_full_transcript(self) -> str:
+        """Obtiene la transcripción completa"""
+        return " ".join(self.full_transcript)
+    
+    def clear(self):
+        """Limpia todos los datos"""
+        self.full_transcript = []
+        while not self.transcript_queue.empty():
+            self.transcript_queue.get()
+
+
+# ==================== INTERFAZ DE USUARIO ====================
+
+def initialize_session_state():
+    """Inicializa el estado de la sesión"""
+    if "transcription_manager" not in st.session_state:
+        st.session_state.transcription_manager = None
+    
+    if "is_recording" not in st.session_state:
+        st.session_state.is_recording = False
+    
+    if "transcripts" not in st.session_state:
+        st.session_state.transcripts = []
+    
+    if "llm_responses" not in st.session_state:
+        st.session_state.llm_responses = []
+    
+    if "auto_process_llm" not in st.session_state:
+        st.session_state.auto_process_llm = False
+
+
+def render_controls():
+    """Renderiza los controles de la aplicación"""
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 2])
+    
+    with col1:
+        start_btn = st.button(
+            "🎙️ Iniciar Grabación",
+            use_container_width=True,
+            type="primary",
+            disabled=st.session_state.is_recording
+        )
+    
+    with col2:
+        stop_btn = st.button(
+            "⏹️ Detener",
+            use_container_width=True,
+            type="secondary",
+            disabled=not st.session_state.is_recording
+        )
+    
+    with col3:
+        clear_btn = st.button(
+            "🗑️ Limpiar",
+            use_container_width=True
+        )
+    
+    with col4:
+        st.session_state.auto_process_llm = st.checkbox(
+            "Auto-procesar con IA",
+            value=st.session_state.auto_process_llm
+        )
+    
+    return start_btn, stop_btn, clear_btn
+
+
+def render_transcript_display():
+    """Renderiza el área de visualización de transcripciones"""
+    
+    # Contenedor para transcripción en tiempo real
+    with st.container():
+        if st.session_state.is_recording:
+            st.info("🎙️ Grabando... Hable cerca del micrófono")
+        
+        # Mostrar transcripciones parciales y finales
+        if st.session_state.transcription_manager:
+            manager = st.session_state.transcription_manager
             
-            # Verificar cola de transcripciones
-            while not processor.transcript_queue.empty():
+            # Obtener transcripciones de la cola
+            transcripts = []
+            while not manager.transcript_queue.empty():
                 try:
-                    transcript_data = processor.transcript_queue.get_nowait()
-                    
-                    if transcript_data['type'] == 'final':
-                        st.session_state[full_transcript_key] += transcript_data['text'] + " "
-                    
-                    # Actualizar visualización
-                    with transcript_container:
-                        st.text_area(
-                            "📝 Transcripción en tiempo real:",
-                            st.session_state[full_transcript_key],
-                            height=300,
-                            key=f"live_{nota}_{time.time()}"
-                        )
-                        
+                    transcript = manager.transcript_queue.get_nowait()
+                    transcripts.append(transcript)
+                    st.session_state.transcripts.append(transcript)
                 except queue.Empty:
                     break
+            
+            # Mostrar transcripción completa
+            if manager.full_transcript:
+                st.text_area(
+                    "📝 Transcripción:",
+                    manager.get_full_transcript(),
+                    height=200,
+                    key=f"transcript_{time.time()}"
+                )
     
-    # Mostrar transcripción acumulada
-    if st.session_state[full_transcript_key] and not st.session_state[is_recording_key]:
+    # Mostrar respuestas del LLM si existen
+    if st.session_state.llm_responses:
         st.divider()
+        st.subheader("🤖 Análisis IA")
         
-        # Opciones de procesamiento
-        col_model1, col_model2 = st.columns([2, 2])
+        for i, response in enumerate(st.session_state.llm_responses[-3:], 1):
+            with st.expander(f"Respuesta {i}", expanded=(i == len(st.session_state.llm_responses[-3:]))):
+                st.write(response)
+
+
+def render_processing_options():
+    """Renderiza opciones de procesamiento con LLM"""
+    
+    if st.session_state.transcription_manager and st.session_state.transcription_manager.full_transcript:
+        st.divider()
+        st.subheader("🔮 Procesamiento con IA")
         
-        with col_model1:
-            model_choice = st.radio(
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            model_choice = st.selectbox(
                 "Seleccionar modelo:",
                 ["Gemini", "DeepInfra", "Ambos"],
-                horizontal=True,
-                key=f"model_{nota}"
+                key="model_choice"
             )
         
-        with col_model2:
+        with col2:
             process_btn = st.button(
-                "🔮 Procesar con IA",
+                "Procesar",
                 use_container_width=True,
-                type="primary",
-                key=f"process_{nota}"
+                type="primary"
             )
         
         if process_btn:
             with st.spinner("Procesando..."):
-                try:
-                    if model_choice == "Ambos":
-                        # Procesar con ambos modelos
-                        gemini_result = process_transcription_with_llm(
-                            st.session_state[full_transcript_key],
-                            nota,
-                            use_gemini=True
-                        )
-                        
-                        deepinfra_result = process_transcription_with_llm(
-                            st.session_state[full_transcript_key],
-                            nota,
-                            use_gemini=False
-                        )
-                        
-                        # Mostrar en tabs
-                        tab1, tab2 = st.tabs(["Gemini", "DeepInfra"])
-                        
-                        with tab1:
-                            st.text_area("Resultado Gemini:", gemini_result, height=400)
-                        
-                        with tab2:
-                            st.text_area("Resultado DeepInfra:", deepinfra_result, height=400)
-                        
-                        st.session_state[transcription_key] = f"### Gemini:\n{gemini_result}\n\n### DeepInfra:\n{deepinfra_result}"
-                        
-                    else:
-                        use_gemini = model_choice == "Gemini"
-                        result = process_transcription_with_llm(
-                            st.session_state[full_transcript_key],
-                            nota,
-                            use_gemini=use_gemini
-                        )
-                        
-                        st.session_state[transcription_key] = result
-                        st.text_area("Resultado procesado:", result, height=400)
+                manager = st.session_state.transcription_manager
+                full_text = manager.get_full_transcript()
+                
+                if model_choice == "Ambos":
+                    # Procesar con ambos modelos
+                    gemini_task = asyncio.create_task(
+                        manager.process_with_gemini(full_text)
+                    )
+                    deepinfra_task = asyncio.create_task(
+                        manager.process_with_deepinfra(full_text)
+                    )
                     
-                    st.success("✅ Procesamiento completado")
+                    gemini_result = asyncio.run(gemini_task)
+                    deepinfra_result = asyncio.run(deepinfra_task)
                     
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                    # Mostrar resultados en tabs
+                    tab1, tab2 = st.tabs(["Gemini", "DeepInfra"])
+                    
+                    with tab1:
+                        st.text_area("Resultado Gemini:", gemini_result, height=300)
+                    
+                    with tab2:
+                        st.text_area("Resultado DeepInfra:", deepinfra_result, height=300)
+                
+                else:
+                    model = "gemini" if model_choice == "Gemini" else "deepinfra"
+                    result = asyncio.run(
+                        manager.process_with_llm(full_text, model)
+                    )
+                    
+                    st.text_area("Resultado:", result, height=300)
+                
+                st.success("✅ Procesamiento completado")
         
         # Botón de descarga
-        if st.session_state[transcription_key]:
-            st.download_button(
-                label="💾 Descargar resultado",
-                data=st.session_state[transcription_key],
-                file_name=f"nota_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain"
-            )
-    
-    return st.session_state[transcription_key]
+        st.download_button(
+            label="💾 Descargar transcripción",
+            data=manager.get_full_transcript(),
+            file_name=f"transcripcion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+            mime="text/plain"
+        )
 
-def process_transcription_with_llm(transcription_text: str, nota: str, use_gemini: bool = True):
-    """
-    Procesa la transcripción usando el modelo LLM seleccionado.
-    """
-    
-    # Definir prompts según tipo de nota
-    prompts = {
-        "primera": """Asume el rol de un psiquiatra especializado y redacta la evolución detallada del padecimiento 
-        de un paciente basándote en la transcripción de consulta proporcionada. Ten en cuenta que la transcripción 
-        es producto de una conversación entre el médico y el paciente, por lo que deberás identificar correctamente 
-        quién está hablando en cada intervención para asegurar una reconstrucción precisa y coherente del relato clínico.
-        
-        TRANSCRIPCIÓN:
-        {transcription}""",
-        
-        "primera_paido": """Asume el rol de un psiquiatra infantil especializado. Con base únicamente en la 
-        transcripción de consulta (que incluye intervenciones del médico, el paciente y uno de los padres), 
-        redacta la evolución detallada del padecimiento del paciente. La transcripción debe permitir identificar 
-        claramente quién interviene en cada turno, por lo que se debe realizar una reconstrucción precisa y 
-        coherente del relato clínico.
-        
-        TRANSCRIPCIÓN:
-        {transcription}""",
-        
-        "subsecuente": """Asume el rol de un psiquiatra especializado y redacta una nueva nota de la evolución 
-        clínica del paciente entre la consulta previa y la actual, precisa y concisa, basándote en la transcripción 
-        de la consulta proporcionada. Considera que dicha transcripción corresponde a una conversación entre el 
-        médico y el paciente, por lo que deberás identificar con claridad quién interviene en cada momento, 
-        extrayendo exclusivamente la información clínica relevante que proviene del testimonio del paciente para 
-        asegurar una redacción precisa y coherente.
-        
-        TRANSCRIPCIÓN:
-        {transcription}"""
-    }
-    
-    prompt = prompts.get(nota, prompts["subsecuente"]).format(transcription=transcription_text)
-    
-    try:
-        if use_gemini:
-            # Usar Gemini
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            result = response.text
-            
-        else:
-            # Usar DeepInfra
-            response = openai.chat.completions.create(
-                model='Qwen/Qwen2.5-72B-Instruct',
-                messages=[
-                    {"role": "system", "content": "Eres un psiquiatra especializado con experiencia en redacción de notas clínicas."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=4000
-            )
-            
-            result = response.choices[0].message.content
-            # Limpiar tags de pensamiento si existen
-            result = re.sub(r'<think>[\s\S]*?</think>', '', result).strip()
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error al procesar con LLM: {str(e)}")
-        raise e
 
-# Función alternativa sin WebRTC (usando upload de archivo)
-def audio_file_transcriber(nota: str):
-    """
-    Alternativa para transcribir archivos de audio cuando WebRTC no está disponible.
-    """
-    st.subheader("📁 Transcripción de Archivo de Audio")
+async def handle_start_recording():
+    """Maneja el inicio de la grabación"""
+    st.session_state.is_recording = True
     
-    uploaded_file = st.file_uploader(
-        "Subir archivo de audio",
-        type=['wav', 'mp3', 'webm', 'm4a', 'ogg'],
-        key=f"upload_{nota}"
+    # Crear nuevo gestor de transcripción
+    manager = TranscriptionManager()
+    st.session_state.transcription_manager = manager
+    
+    # Iniciar streaming
+    success = await manager.start_streaming()
+    
+    if success:
+        st.success("✅ Grabación iniciada")
+    else:
+        st.session_state.is_recording = False
+        st.error("❌ No se pudo iniciar la grabación")
+
+
+async def handle_stop_recording():
+    """Maneja la detención de la grabación"""
+    st.session_state.is_recording = False
+    
+    if st.session_state.transcription_manager:
+        await st.session_state.transcription_manager.stop_streaming()
+        st.info("⏹️ Grabación detenida")
+
+
+def handle_clear():
+    """Maneja la limpieza de datos"""
+    st.session_state.is_recording = False
+    st.session_state.transcripts = []
+    st.session_state.llm_responses = []
+    
+    if st.session_state.transcription_manager:
+        asyncio.run(st.session_state.transcription_manager.stop_streaming())
+        st.session_state.transcription_manager = None
+    
+    st.success("✅ Datos limpiados")
+    st.rerun()
+
+
+# ==================== APLICACIÓN PRINCIPAL ====================
+
+def main():
+    """Función principal de la aplicación"""
+    
+    # Configuración de la página
+    st.set_page_config(
+        page_title="Transcripción en Tiempo Real",
+        page_icon="🎙️",
+        layout="wide"
     )
     
-    if uploaded_file:
-        # Guardar archivo temporal
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp_file:
-            tmp_file.write(uploaded_file.getbuffer())
-            temp_path = Path(tmp_file.name)
-        
-        try:
-            # Convertir a WAV si es necesario
-            audio = AudioSegment.from_file(temp_path)
-            audio = audio.set_channels(1).set_frame_rate(16000)
-            
-            wav_path = temp_path.with_suffix('.wav')
-            audio.export(wav_path, format='wav')
-            
-            # Transcribir con AssemblyAI
-            with st.spinner("Transcribiendo audio..."):
-                transcriber = aai.Transcriber()
-                transcript = transcriber.transcribe(str(wav_path))
-                
-                if transcript.status == aai.TranscriptStatus.error:
-                    st.error(f"Error en transcripción: {transcript.error}")
-                    return None
-                
-                st.success("✅ Transcripción completada")
-                
-                # Mostrar transcripción
-                st.text_area(
-                    "Transcripción:",
-                    transcript.text,
-                    height=300
-                )
-                
-                # Procesar con LLM
-                if st.button("🔮 Procesar con IA", key=f"process_file_{nota}"):
-                    with st.spinner("Procesando..."):
-                        result = process_transcription_with_llm(
-                            transcript.text,
-                            nota,
-                            use_gemini=True
-                        )
-                        
-                        st.text_area(
-                            "Resultado procesado:",
-                            result,
-                            height=400
-                        )
-                        
-                        return result
-                
-        finally:
-            # Limpiar archivos temporales
-            temp_path.unlink(missing_ok=True)
-            if wav_path.exists():
-                wav_path.unlink()
+    # Título y descripción
+    st.title("🎙️ Transcripción en Tiempo Real")
+    st.markdown("""
+    **Captura y transcribe audio en tiempo real usando WebRTC + AssemblyAI + IA**
+    - ✅ Streaming de audio desde el navegador
+    - ✅ Transcripción en tiempo real con AssemblyAI
+    - ✅ Procesamiento con Gemini o DeepInfra
+    - ✅ Reconexión automática en caso de fallas
+    """)
     
-    return None
-
-# Función de reconexión automática
-async def maintain_connection(processor: AudioStreamProcessor):
-    """
-    Mantiene la conexión con AssemblyAI y maneja reconexiones automáticas.
-    """
-    max_retries = 3
-    retry_delay = 2
+    # Inicializar estado
+    initialize_session_state()
     
-    for attempt in range(max_retries):
-        try:
-            if not processor.websocket or processor.websocket.closed:
-                logger.info(f"Intento de reconexión {attempt + 1}/{max_retries}")
-                
-                if await processor.connect_websocket():
-                    logger.info("Reconexión exitosa")
-                    return True
-                    
-                await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Backoff exponencial
-                
-        except Exception as e:
-            logger.error(f"Error en reconexión: {e}")
+    # Renderizar controles
+    start_btn, stop_btn, clear_btn = render_controls()
+    
+    # Manejar acciones de botones
+    if start_btn:
+        asyncio.run(handle_start_recording())
+        st.rerun()
+    
+    if stop_btn:
+        asyncio.run(handle_stop_recording())
+        st.rerun()
+    
+    if clear_btn:
+        handle_clear()
+    
+    # WebRTC Streamer para captura de audio
+    if st.session_state.is_recording and st.session_state.transcription_manager:
+        manager = st.session_state.transcription_manager
+        
+        webrtc_ctx = webrtc_streamer(
+            key="speech-to-text",
+            mode=WebRtcMode.SENDONLY,
+            rtc_configuration=RTC_CONFIGURATION,
+            media_stream_constraints={
+                "video": False,
+                "audio": {
+                    "echoCancellation": True,
+                    "noiseSuppression": True,
+                    "autoGainControl": True,
+                    "sampleRate": 16000
+                }
+            },
+            audio_frame_callback=manager.audio_processor.process_audio_frame,
+            async_processing=True,
+        )
+    
+    # Mostrar transcripciones
+    render_transcript_display()
+    
+    # Opciones de procesamiento
+    render_processing_options()
+    
+    # Información del sistema
+    with st.sidebar:
+        st.header("ℹ️ Información del Sistema")
+        
+        if st.session_state.transcription_manager:
+            manager = st.session_state.transcription_manager
             
-    return False
-
-def calculate_age(born):
-    today = datetime.now()
-    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
-
-def clin_merge(scale):
-    if scale != '':
-        return f' {scale}, '
-    else:
-        return ''
-
-def radio_check(var):
-    if var != '':
-        return 'Yes'
-    else:
-        return ''
-
-def update_dict(dic,var):
-    dic.update({var:'Yes',})
-
-def id_gen():
-    now = datetime.now()
-    date_id = now.strftime('%d%m%y%H%M%S')
-    return int(date_id)
-
-def ensure_index(action, collection, index_name, index_key):
-    """
-    Ensure that a specified index exists on a collection. If the index does not
-    exist, create it using the specified index key.
-    """
-    if action == 'create':
-        if index_name not in [idx['name'] for idx in collection.list_indexes()]:
-            collection.create_index(index_key, name=index_name)
-            print(f"Created index '{index_name}' on collection '{collection.name}'")
-        else:
-            print(f"Index '{index_name}' already exists on collection '{collection.name}'")
-    else:
-        collection.drop_index(index_name)
-        print(f'Index {index_name} has been deleted')
-
-def search_collection(collection, criteria, all_info = True):
-    """
-    Search a MongoDB collection for documents that match a set of criteria.
-    """
-    results = []
-    if all_info:
-        for document in collection.find(criteria):
-            results.append(document)
-        return results
-    else:
-        for document in collection.find(criteria,{'_id': 0, 'nombres':1,'primer apellido':1,'segundo apellido':1,'generales.nacimiento.fecha': 1}):
-            results.append(document)
-        return results
-
-def unidecode_except(string):
-    exceptions = ['ñ','1','2','3','4','5','6','7','8','9','0',]
-    replaced_string = ''
-    for c in string:
-        if c in exceptions:
-            replaced_string += c
-        else:
-            replaced_string += un            replaced_string += unidecode(c)
-
-            return replaced_string
+            st.metric(
+                "Estado",
+                "🔴 Grabando" if st.session_state.is_recording else "⚪ Detenido"
+            )
+            
+            if manager.assemblyai_client.session_id:
+                st.text(f"Sesión: {manager.assemblyai_client.session_id[:8]}...")
+            
+            st.metric(
+                "Transcripciones",
+                len(manager.full_transcript)
+            )
+            
+            st.metric(
+                "Respuestas IA",
+                len(st.session_state.llm_responses)
+            )
         
-        def data_format(field, val):
-            """
-            :param field: Debe ser array
-            :param val: Debe ser array
-            """
-            for i in range(len(val)):
-                val[i]= unidecode_except(val[i])
+        st.divider()
         
-            temp_ar = {}
-            for i in range(len(field)):
-                temp_ar[field[i]] = {"$regex": val[i],"$options": "i"}
-            return temp_ar
+        st.header("⚙️ Configuración")
         
-        def doc_field(database_name, collection_name, filter, projection):
-            db = database_name
-            collection = db[collection_name]
-            documents = collection.find(filter, projection)
+        # Selector de modelo por defecto
+        default_model = st.selectbox(
+            "Modelo por defecto:",
+            ["Gemini", "DeepInfra"],
+            key="default_model"
+        )
         
-            results = []
-            for document in documents:
-                result = {}
-                for field in projection:
-                    result[field] = document[field]
-                results.append(result)
-            return results
+        # Opciones de audio
+        st.subheader("Audio")
         
-        def buscar_clientes(nombre, apellido_paterno, apellido_materno):
-            db = ['expedinente electronico']
-            collection = db['pacientes']
+        buffer_size = st.slider(
+            "Tamaño del buffer:",
+            min_value=1,
+            max_value=20,
+            value=8,
+            help="Frames de audio antes de enviar"
+        )
         
-            resultados = collection.find({
-                'nombre': nombre,
-                'apellido_paterno': apellido_paterno,
-                'apellido_materno': apellido_materno
-            }, {
-                '_id': 0,
-                'generales.fecha_nacimiento': 1
-            })
-        
-            return [r for r in resultados]
-        
-        def check_ef(var):
-            if var == "":
-                var = 'sin alteraciones'
-            return var
-        
-        def note_show(consultas_previas, paciente, nota):
-            renglon = '\n'
-            evol = st.expander('CONSULTAS PREVIAS', expanded=True)
-            with evol:
-                fechas_citas = []
-                for i in range(consultas_previas):
-                    fechas_citas.insert(0,paciente[0]['consultas'][i]['fecha'])
-                fecha_nota_prev = st.selectbox('Seleccione fecha de citas previas:', fechas_citas)
-                for consulta in paciente[0]["consultas"]:
-                    if consulta["fecha"] == fecha_nota_prev:
-                        if consulta['fecha'] == fechas_citas[-1]:
-                            st.subheader('Consulta de primera vez')
-                            st.text_area('', nota, height=300)
-                        else:
-                            prev_cons = consulta
-        
-                            consulta_anterior = ('##### '+prev_cons['fecha'] + renglon + renglon +
-                                                    '> ' + prev_cons['presentacion'].replace('\n', ' ') + renglon + '- ' +
-                                                    prev_cons['subjetivo'] + renglon + renglon +
-                                                    '- '+'SOMATOMETRÍA Y SIGNOS VITALES:' + renglon +
-                                                    'FC: ' + prev_cons['fc'] + ' lpm' + ' | ' +  'FR: ' + prev_cons['fr'] + ' rpm' + ' | ' + 'TA: ' + prev_cons['ta'] + ' mmHg' + ' | ' + ' ------- ' + 'PESO: ' +  str(prev_cons['peso']) + ' ' + 'kg' + '  ' + 'TALLA: ' + str(prev_cons['talla']) + ' ' + 'cm' + renglon + renglon + '- ' +
-                                                    prev_cons['objetivo'] + renglon + renglon +
-                                                    'PHQ-9: '+ prev_cons['clinimetrias']['phq9'] + ' ' + ' |   ' +
-                                                    'GAD-7: '+ prev_cons['clinimetrias']['gad7'] + ' ' + ' |   ' +
-                                                    'SADPERSONS: '+ prev_cons['clinimetrias']['sadpersons'] + ' ' + ' |   ' +
-                                                    'YOUNG: '+ prev_cons['clinimetrias']['young'] + ' ' + ' |   ' +
-                                                    'MDQ: '+ prev_cons['clinimetrias']['mdq'] + ' ' + ' |   ' +
-                                                    'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
-                                                    'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +
-                                                    '##### '+ 'ANÁLISIS: ' + renglon +prev_cons['analisis'] + renglon + renglon +
-                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- '
-        
-                            st.markdown(consulta_anterior)
-            return fechas_citas[-1]
-        
-        def last_note(consultas_previas, paciente, nota):
-            renglon = '\n'
-            fechas_citas = []
-            for i in range(consultas_previas):
-                fechas_citas.append(paciente[0]['consultas'][i]['fecha'])
-        
-            return fechas_citas[-1], len(fechas_citas)
-        
-        
-        def mongo_intial(mongodb_uri):
-            uri = mongodb_uri
-            client = MongoClient(uri)
-            db = client['expedinente_electronico']
-            pacientes = db['pacientes']
-            ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
-            return client, pacientes
-        
-        def mongo_connect(mongodb_uri):
-            uri = mongodb_uri
-            client = MongoClient(uri)
-            db = client['expedinente_electronico']
-            pacientes = db['pacientes']
-            ensure_index('create',pacientes,'nombre_apellidos', [('nombres', 1), ('primer apellido', -1), ('segundo appelido', 1)])
-            return client
-        
-        def gdrive_up(local_file, final_name):
-            gauth = GoogleAuth()
-            scope = ['https://www.googleapis.com/auth/drive','https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/drive.appdata']
-            gauth.service_account_json = 'service_account.json'
-            print(gauth)
-            drive = GoogleDrive(gauth)
-            file_name = local_file
-            gfile = drive.CreateFile({'parents': [{'id': '1ESHu5ZblpwcCI5PrHP-80YrQ-NPiH7nm'}], 'title': final_name})
-            gfile.SetContentFile(file_name)
-            gfile.Upload()
-            print(file_name)
-            print('---------DESPUES DE LEER ARCHIVO')
-            file_url = 'https://drive.google.com/file/d/' + gfile['id'] + '/view'
-            return file_url
+        if st.session_state.transcription_manager:
+            st.session_state.transcription_manager.audio_processor.buffer_size = buffer_size
