@@ -19,7 +19,23 @@ import tempfile
 from pathlib import Path
 import time
 import assemblyai as aai
+import asyncio
+import websockets
+import json
+import base64
+import queue
+import threading
+import time
+import numpy as np
+import logging
+from streamlit_webrtc import (
+    webrtc_streamer, 
+    WebRtcMode, 
+    RTCConfiguration,
+    ClientSettings
+)
 
+logger = logging.getLogger(__name__)
 import queue
 
 RECORDINGS_DIR = Path("recordings")
