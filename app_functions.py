@@ -1,7 +1,3 @@
-"""
-Sistema de Transcripción en Tiempo Real con WebRTC + AssemblyAI + LLM
-Versión optimizada para EasyPanel sin dependencias problemáticas
-"""
 
 import os
 import json
@@ -28,14 +24,6 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 
 # ==================== CONFIGURACIÓN INICIAL ====================
-
-# Configuración de página
-st.set_page_config(
-    page_title="Sistema de Transcripción Médica",
-    page_icon="🎙️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
 # Logging
 logging.basicConfig(level=logging.INFO)
