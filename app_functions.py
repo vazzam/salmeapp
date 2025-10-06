@@ -20,6 +20,7 @@ from pathlib import Path
 import time
 import assemblyai as aai
 import queue
+import logging
 from streamlit_webrtc import (
     webrtc_streamer,
     WebRtcMode,
