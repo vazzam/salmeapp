@@ -1053,7 +1053,7 @@ def unidecode_except(string):
         if c in exceptions:
             replaced_string += c
         else:
-            replaced_string += un            replaced_string += unidecode(c)
+            replaced_string += unidecode(c)
 
             return replaced_string
         
@@ -1133,7 +1133,7 @@ def unidecode_except(string):
                                                     'ASRS: '+ prev_cons['clinimetrias']['asrs'] + ' ' + ' |   ' +
                                                     'OTRAS: '+ prev_cons['clinimetrias']['otras_clini'] + ' ' + ' |   ' + renglon + renglon +
                                                     '##### '+ 'ANÁLISIS: ' + renglon +prev_cons['analisis'] + renglon + renglon +
-                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- '
+                                                    '##### '+ 'PLAN: ' + renglon + prev_cons['plan'] + renglon + '--- ')
         
                             st.markdown(consulta_anterior)
             return fechas_citas[-1]
