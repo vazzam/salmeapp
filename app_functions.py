@@ -1030,7 +1030,7 @@ def unidecode_except(string):
         if c in exceptions:
             replaced_string += c
         else:
-            replaced_string += un            replaced_string += unidecode(c)
+            replaced_string += unidecode(c)
 
             return replaced_string
         
