@@ -20,6 +20,12 @@ from pathlib import Path
 import time
 import assemblyai as aai
 import queue
+# ==================== CONFIGURACIÓN DE LOGGING ====================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)  # CORREGIDO: era 'name'
 
 RECORDINGS_DIR = Path("recordings")
 RECORDINGS_DIR.mkdir(exist_ok=True)
