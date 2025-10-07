@@ -448,11 +448,14 @@ def convert_to_wav(input_path: Path) -> Path:
 # ==================== FUNCIÓN PRINCIPAL DE GRABACIÓN CORREGIDA ====================
 def audio_recorder_transcriber(nota: str):
     """
-    Función para transcripción en tiempo real usando WebRTC y AssemblyAI Streaming.
-    VERSIÓN CORREGIDA Y OPTIMIZADA
+    Transcripción en tiempo real con WebRTC + AssemblyAI.
+    Corrige:
+    - Mezcla a mono correcta (axis=0).
+    - Resampleo a 16kHz con resample_poly.
+    - Headers de WS y manejo de sesión.
+    - rtc_configuration como dict simple.
     """
-    
-    # Inicializar claves de estado
+    # Claves para session_state
     streaming_key = f"streaming_{nota}"
     transcription_key = f"transcripcion_{nota}"
     is_recording_key = f"is_recording_{nota}"
@@ -460,414 +463,306 @@ def audio_recorder_transcriber(nota: str):
     audio_queue_key = f"audio_queue_{nota}"
     websocket_key = f"websocket_{nota}"
     session_id_key = f"session_id_{nota}"
-    ws_thread_key = f"ws_thread_{nota}"
-    
-    # Inicializar session state
-    if streaming_key not in st.session_state:
-        st.session_state[streaming_key] = None
-    if transcription_key not in st.session_state:
-        st.session_state[transcription_key] = None
-    if is_recording_key not in st.session_state:
-        st.session_state[is_recording_key] = False
-    if full_transcript_key not in st.session_state:
-        st.session_state[full_transcript_key] = ""
-    if audio_queue_key not in st.session_state:
-        st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
-    if websocket_key not in st.session_state:
-        st.session_state[websocket_key] = None
-    if session_id_key not in st.session_state:
-        st.session_state[session_id_key] = None
-    if ws_thread_key not in st.session_state:
-        st.session_state[ws_thread_key] = None
-    
-    # Contenedores para UI
+
+    # Inicializa estado
+    st.session_state.setdefault(streaming_key, None)
+    st.session_state.setdefault(transcription_key, None)
+    st.session_state.setdefault(is_recording_key, False)
+    st.session_state.setdefault(full_transcript_key, "")
+    st.session_state.setdefault(audio_queue_key, queue.Queue(maxsize=100))
+    st.session_state.setdefault(websocket_key, None)
+    st.session_state.setdefault(session_id_key, None)
+
     transcript_placeholder = st.empty()
     status_placeholder = st.empty()
-    
-    # ==================== FUNCIONES WEBSOCKET ====================
-    def websocket_handler():
+
+    TARGET_SR = 16000
+
+    def audioframe_to_pcm16_16k(frame: av.AudioFrame) -> bytes:
         """
-        Manejador del WebSocket en thread separado.
-        CORREGIDO: Manejo apropiado de asyncio en thread.
+        Convierte av.AudioFrame a PCM16 mono 16kHz (bytes).
+        """
+        sr = int(getattr(frame, "sample_rate", 48000) or 48000)
+        arr = frame.to_ndarray()  # shape: (channels, samples) casi siempre
+
+        # Mezcla a mono por canales (axis=0)
+        if arr.ndim == 2:
+            arr = arr.mean(axis=0)
+
+        # A float32 [-1.0, 1.0]
+        if arr.dtype == np.int16:
+            arr = arr.astype(np.float32) / 32768.0
+        else:
+            arr = arr.astype(np.float32)
+
+        # Resampleo a 16kHz si hace falta
+        if sr != TARGET_SR:
+            arr = resample_poly(arr, TARGET_SR, sr).astype(np.float32)
+
+        # A int16 PCM
+        arr = np.clip(arr, -1.0, 1.0)
+        audio_bytes = (arr * 32767.0).astype(np.int16).tobytes()
+        return audio_bytes
+
+    async def connect_assemblyai():
+        """
+        Conecta al WebSocket de AssemblyAI.
         """
         try:
-            # Crear nuevo event loop para este thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Ejecutar la conexión
-            loop.run_until_complete(websocket_connection())
-            
+            url = f"wss://api.assemblyai.com/v2/realtime/ws?sample_rate={TARGET_SR}"
+            # Nota: websockets acepta dict o lista de tuplas en extra_headers
+            ws = await websockets.connect(url, extra_headers={"Authorization": assemblyai_api})
+
+            # Mensaje inicial de sesión
+            session_msg = await ws.recv()
+            data = json.loads(session_msg)
+            msg_type = (data.get("message_type") or data.get("type") or "").lower()
+            if "sessionbegins" in msg_type or "session_begins" in msg_type:
+                session_id = data.get("session_id", "")
+                st.session_state[session_id_key] = session_id
+                st.session_state[websocket_key] = ws
+                status_placeholder.success(f"🎙️ Sesión iniciada: {session_id[:12]}...")
+                return ws
+            else:
+                status_placeholder.warning("Conectado, pero sin mensaje de inicio de sesión.")
+                st.session_state[websocket_key] = ws
+                return ws
         except Exception as e:
-            logger.error(f"Error en websocket_handler: {e}")
-            st.session_state[is_recording_key] = False
-        finally:
-            loop.close()
-    
-    async def websocket_connection():
-        """
-        Conexión y manejo del WebSocket de AssemblyAI.
-        CORREGIDO: Estructura async/await apropiada.
-        """
-        url = "wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000"
-        
-        try:
-            async with websockets.connect(
-                url,
-                extra_headers={"Authorization": assemblyai_api},
-                ping_interval=20,
-                ping_timeout=10
-            ) as ws:
-                
-                # Recibir mensaje de sesión
-                session_msg = await asyncio.wait_for(ws.recv(), timeout=10.0)
-                session_data = json.loads(session_msg)
-                
-                if session_data.get("message_type") == "SessionBegins":
-                    session_id = session_data.get("session_id")
-                    st.session_state[session_id_key] = session_id
-                    st.session_state[websocket_key] = "connected"
-                    logger.info(f"Sesión AssemblyAI iniciada: {session_id}")
-                    
-                    # Crear tareas paralelas
-                    send_task = asyncio.create_task(send_audio_loop(ws))
-                    receive_task = asyncio.create_task(receive_transcripts_loop(ws))
-                    
-                    # Esperar hasta que se detenga la grabación
-                    while st.session_state[is_recording_key]:
-                        await asyncio.sleep(0.1)
-                    
-                    # Cancelar tareas
-                    send_task.cancel()
-                    receive_task.cancel()
-                    
-                    # Esperar cancelación
-                    try:
-                        await send_task
-                    except asyncio.CancelledError:
-                        pass
-                    
-                    try:
-                        await receive_task
-                    except asyncio.CancelledError:
-                        pass
-                    
-                    # Terminar sesión
-                    try:
-                        await ws.send(json.dumps({"terminate_session": True}))
-                    except:
-                        pass
-                
-        except asyncio.TimeoutError:
-            logger.error("Timeout conectando a AssemblyAI")
-            status_placeholder.error("❌ Timeout de conexión")
-        except Exception as e:
-            logger.error(f"Error en websocket_connection: {e}")
-            status_placeholder.error(f"❌ Error: {str(e)}")
-        finally:
-            st.session_state[websocket_key] = None
-    
-    async def send_audio_loop(ws):
-        """
-        Loop para enviar audio desde la cola al WebSocket.
-        CORREGIDO: Manejo apropiado de la cola con timeout.
-        """
-        while st.session_state[is_recording_key]:
+            status_placeholder.error(f"❌ Error conectando a AssemblyAI: {e}")
+            logger.exception("Error conectando a AssemblyAI")
+            return None
+
+    async def send_audio_chunk(ws, audio_data: bytes):
+        if ws and not ws.closed and audio_data:
             try:
-                # Intentar obtener audio de la cola (no bloqueante)
-                try:
-                    audio_data = st.session_state[audio_queue_key].get(timeout=0.1)
-                    
-                    # Enviar al WebSocket
-                    if audio_data and len(audio_data) > 0:
-                        audio_b64 = base64.b64encode(audio_data).decode('utf-8')
-                        await ws.send(json.dumps({"audio_data": audio_b64}))
-                    
-                    # Marcar como procesado
-                    st.session_state[audio_queue_key].task_done()
-                    
-                except queue.Empty:
-                    # No hay audio disponible, esperar un poco
-                    await asyncio.sleep(0.05)
-                    
+                audio_b64 = base64.b64encode(audio_data).decode("utf-8")
+                await ws.send(json.dumps({"audio_data": audio_b64}))
             except Exception as e:
                 logger.error(f"Error enviando audio: {e}")
-                await asyncio.sleep(0.1)
-    
-    async def receive_transcripts_loop(ws):
-        """
-        Loop para recibir transcripciones del WebSocket.
-        CORREGIDO: Manejo robusto de mensajes.
-        """
-        partial_text = ""
-        
-        while st.session_state[is_recording_key]:
+
+    async def receive_transcripts(ws):
+        while st.session_state[is_recording_key] and ws and not ws.closed:
             try:
                 message = await asyncio.wait_for(ws.recv(), timeout=1.0)
                 data = json.loads(message)
-                
-                message_type = data.get("message_type")
-                text = data.get("text", "")
-                
+                msg_type = data.get("message_type") or data.get("type")
+                text = data.get("text", "") or data.get("transcript", "")
+
                 if not text:
                     continue
-                
-                if message_type == "FinalTranscript":
-                    # Transcripción final
+
+                if msg_type in ("FinalTranscript", "final"):
                     st.session_state[full_transcript_key] += text + " "
-                    partial_text = ""
-                    
-                    # Actualizar UI
                     transcript_placeholder.text_area(
-                        "📝 Transcripción en tiempo real:",
+                        "📝 Transcripción en tiempo real",
                         st.session_state[full_transcript_key],
                         height=300,
-                        key=f"live_transcript_{nota}_{time.time()}"
+                        key=f"live_final_{nota}_{time.time()}",
                     )
-                    
-                elif message_type == "PartialTranscript":
-                    # Transcripción parcial (actualización temporal)
-                    partial_text = text
-                    temp_display = st.session_state[full_transcript_key] + f"[{partial_text}...]"
-                    
+                elif msg_type in ("PartialTranscript", "partial"):
+                    temp_text = st.session_state[full_transcript_key] + f"[{text}]"
                     transcript_placeholder.text_area(
-                        "📝 Transcripción en tiempo real:",
-                        temp_display,
+                        "📝 Transcripción en tiempo real",
+                        temp_text,
                         height=300,
-                        key=f"live_transcript_temp_{nota}_{time.time()}"
+                        key=f"live_partial_{nota}_{time.time()}",
                     )
-                    
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 if st.session_state[is_recording_key]:
                     logger.error(f"Error recibiendo transcripción: {e}")
-    
-    # ==================== CALLBACK DE AUDIO WEBRTC ====================
-    def audio_frame_callback(frame: AudioFrame):
+
+    async def process_audio_queue(ws):
+        while st.session_state[is_recording_key] and ws and not ws.closed:
+            try:
+                # No bloquear el loop principal
+                audio_data = await asyncio.to_thread(st.session_state[audio_queue_key].get, True, 0.5)
+                await send_audio_chunk(ws, audio_data)
+            except queue.Empty:
+                await asyncio.sleep(0.05)
+            except Exception as e:
+                logger.error(f"Error procesando cola de audio: {e}")
+                await asyncio.sleep(0.05)
+
+    def audio_frame_callback(frame: av.AudioFrame) -> av.AudioFrame:
         """
-        Callback para procesar frames de audio desde WebRTC.
-        CORREGIDO: Manejo apropiado de AudioFrame.
+        Callback de frames de audio desde WebRTC.
+        Convierte cada frame a PCM16 mono 16k y lo encola.
         """
         if not st.session_state[is_recording_key]:
             return frame
-        
         try:
-            # Convertir AudioFrame a numpy array
-            sound = frame.to_ndarray()
-            
-            # Convertir estéreo a mono si es necesario
-            if len(sound.shape) > 1:
-                sound = np.mean(sound, axis=1)
-            
-            # Normalizar y convertir a 16-bit PCM
-            sound = np.clip(sound, -1.0, 1.0)
-            audio_int16 = (sound * 32767).astype(np.int16)
-            audio_bytes = audio_int16.tobytes()
-            
-            # Agregar a la cola (no bloqueante)
-            try:
-                st.session_state[audio_queue_key].put_nowait(audio_bytes)
-            except queue.Full:
-                # Cola llena, descartar frame más antiguo
-                try:
-                    st.session_state[audio_queue_key].get_nowait()
-                    st.session_state[audio_queue_key].put_nowait(audio_bytes)
-                except:
-                    pass
-                    
+            audio_bytes = audioframe_to_pcm16_16k(frame)
+            q = st.session_state[audio_queue_key]
+            if q.qsize() < q.maxsize - 2:
+                q.put_nowait(audio_bytes)
         except Exception as e:
-            logger.error(f"Error en audio_frame_callback: {e}")
-        
+            logger.exception("Error en audio_frame_callback: %s", e)
         return frame
-    
-    # ==================== INTERFAZ DE USUARIO ====================
+
+    async def streaming_handler():
+        """
+        Manejador principal asíncrono (en un thread) para websockets + colas.
+        """
+        ws = await connect_assemblyai()
+        if not ws:
+            st.session_state[is_recording_key] = False
+            return
+
+        try:
+            recv_task = asyncio.create_task(receive_transcripts(ws))
+            send_task = asyncio.create_task(process_audio_queue(ws))
+
+            while st.session_state[is_recording_key]:
+                await asyncio.sleep(0.1)
+
+            # Finaliza tareas
+            for task in (recv_task, send_task):
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        finally:
+            if ws and not ws.closed:
+                try:
+                    await ws.send(json.dumps({"terminate_session": True}))
+                except Exception:
+                    pass
+                await ws.close()
+            status_placeholder.info("🛑 Sesión de grabación finalizada")
+
+    # UI
     st.subheader("🎙️ Transcripción en Streaming con AssemblyAI")
-    
+
     col1, col2, col3 = st.columns([2, 2, 2])
-    
     with col1:
         start_button = st.button(
             "🎙️ Iniciar Grabación",
             disabled=st.session_state[is_recording_key],
             use_container_width=True,
             type="primary",
-            key=f"start_{nota}"
+            key=f"start_{nota}",
         )
-    
     with col2:
         stop_button = st.button(
             "⏹️ Detener Grabación",
             disabled=not st.session_state[is_recording_key],
             use_container_width=True,
-            type="secondary",
-            key=f"stop_{nota}"
+            key=f"stop_{nota}",
         )
-    
     with col3:
-        clear_button = st.button(
-            "🗑️ Limpiar",
-            use_container_width=True,
-            key=f"clear_{nota}"
-        )
-    
-    # ==================== LÓGICA DE BOTONES ====================
+        clear_button = st.button("🗑️ Limpiar", use_container_width=True, key=f"clear_{nota}")
+
     if start_button:
-        # Limpiar estado previo
         st.session_state[is_recording_key] = True
         st.session_state[full_transcript_key] = ""
         st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
-        st.session_state[websocket_key] = None
-        
-        # Iniciar thread del WebSocket
-        ws_thread = threading.Thread(target=websocket_handler, daemon=True)
-        ws_thread.start()
-        st.session_state[ws_thread_key] = ws_thread
-        
-        status_placeholder.success("✅ Iniciando grabación...")
-        st.rerun()  # Forzar actualización
-    
+
+        def run_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(streaming_handler())
+
+        th = threading.Thread(target=run_async, daemon=True)
+        th.start()
+        st.session_state[streaming_key] = th
+        status_placeholder.info("Conectando con AssemblyAI... da permiso al micrófono si te lo pide el navegador.")
+
     if stop_button:
         st.session_state[is_recording_key] = False
-        status_placeholder.info("⏹️ Deteniendo grabación...")
-        time.sleep(1)  # Dar tiempo para cerrar conexiones
-        st.rerun()
-    
+        status_placeholder.info("⏹️ Grabación detenida")
+
     if clear_button:
-        # Detener grabación si está activa
         st.session_state[is_recording_key] = False
-        time.sleep(0.5)
-        
-        # Limpiar todo
         st.session_state[full_transcript_key] = ""
         st.session_state[transcription_key] = None
         st.session_state[audio_queue_key] = queue.Queue(maxsize=100)
-        st.session_state[websocket_key] = None
-        st.session_state[session_id_key] = None
-        
         transcript_placeholder.empty()
         status_placeholder.empty()
         st.success("✅ Transcripción limpiada")
-        time.sleep(1)
-        st.rerun()
-    
-    # ==================== WEBRTC STREAMER ====================
+
+    # Crea el WebRTC streamer mientras está grabando
     if st.session_state[is_recording_key]:
-        st.info("🔴 Grabando... Hable claramente hacia el micrófono")
-        
-        # Configuración WebRTC
-        rtc_config = RTCConfiguration({
+        st.info("🔴 Grabando... habla claramente hacia el micrófono")
+        rtc_config = {
             "iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
                 {"urls": ["stun:stun1.l.google.com:19302"]},
             ]
-        })
-        
-        # Iniciar WebRTC streamer
-        webrtc_ctx = webrtc_streamer(
-            key=f"speech_{nota}_{st.session_state.get('webrtc_counter', 0)}",
+        }
+        webrtc_streamer(
+            key=f"speech_{nota}",
             mode=WebRtcMode.SENDONLY,
-            rtc_configuration=rtc_config,
+            rtc_configuration=rtc_config,   # ← dict simple, no RTCConfiguration({...})
             media_stream_constraints={
                 "video": False,
                 "audio": {
                     "echoCancellation": True,
                     "noiseSuppression": True,
                     "autoGainControl": True,
-                    "sampleRate": 16000,
-                }
+                },
             },
             audio_frame_callback=audio_frame_callback,
             async_processing=True,
         )
-        
-        # Mostrar estado de conexión
-        if webrtc_ctx.state.playing:
-            status_placeholder.success("🎙️ Micrófono activo - Grabando")
-        else:
-            status_placeholder.warning("⚠️ Esperando conexión del micrófono...")
-    
-    # ==================== PROCESAMIENTO POST-GRABACIÓN ====================
+
+    # Post-proceso (igual que tu versión)
     if st.session_state[full_transcript_key] and not st.session_state[is_recording_key]:
         st.divider()
-        
-        # Mostrar transcripción raw
-        with st.expander("📄 Transcripción Raw", expanded=False):
-            st.text_area(
-                "Texto transcrito:",
-                st.session_state[full_transcript_key],
-                height=200,
-                key=f"raw_transcript_{nota}"
-            )
-        
+
         col_process1, col_process2, col_process3 = st.columns([2, 2, 1])
-        
         with col_process1:
             model_option = st.selectbox(
-                "Modelo LLM:",
-                ["Gemini", "DeepInfra"],
-                key=f"model_{nota}"
+                "Modelo LLM:", ["Gemini", "DeepInfra"], key=f"model_{nota}"
             )
-        
         with col_process2:
             process_button = st.button(
                 "🔮 Procesar con LLM",
                 use_container_width=True,
                 type="primary",
-                key=f"process_{nota}"
+                key=f"process_{nota}",
             )
-        
         with col_process3:
-            copy_button = st.button(
-                "📋 Copiar",
-                use_container_width=True,
-                key=f"copy_{nota}"
-            )
-        
+            copy_button = st.button("📋 Copiar", use_container_width=True, key=f"copy_{nota}")
+
         if process_button and st.session_state[full_transcript_key]:
             with st.spinner(f"🤖 Procesando transcripción con {model_option}..."):
                 try:
                     if model_option == "Gemini":
-                        processed_text = resumen_transcripcion_gemini(
-                            st.session_state[full_transcript_key],
-                            nota
+                        processed_text = process_transcription_with_gemini(
+                            st.session_state[full_transcript_key], nota
                         )
                     else:
-                        processed_text = resumen_transcripcion_deepinfra(
-                            st.session_state[full_transcript_key],
-                            nota
+                        processed_text = process_transcription_with_deepinfra(
+                            st.session_state[full_transcript_key], nota
                         )
-                    
                     st.session_state[transcription_key] = processed_text
                     st.success("✅ Transcripción procesada exitosamente")
-                    st.rerun()
-                    
                 except Exception as e:
                     st.error(f"Error al procesar con LLM: {str(e)}")
-                    logger.error(f"Error procesando con LLM: {e}")
-        
+
         if copy_button:
             st.code(st.session_state[full_transcript_key], language=None)
-            st.info("📋 Texto listo para copiar (selecciona y copia)")
-    
-    # ==================== MOSTRAR RESULTADO PROCESADO ====================
+
     if st.session_state[transcription_key]:
         st.divider()
         st.subheader("📄 Resultado Procesado por IA")
-        
         with st.expander("Ver resultado completo", expanded=True):
-            st.markdown(st.session_state[transcription_key])
-        
-        # Botón de descarga
+            st.text_area(
+                "Nota Clínica Procesada:",
+                st.session_state[transcription_key],
+                height=400,
+                key=f"processed_result_{nota}",
+            )
         st.download_button(
             label="💾 Descargar Nota Procesada",
             data=st.session_state[transcription_key],
             file_name=f"nota_{nota}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
             mime="text/plain",
-            key=f"download_{nota}"
+            key=f"download_{nota}",
         )
-    
-    return st.session_state.get(transcription_key)
+
+    return st.session_state[transcription_key]
 
 
 # ==================== FUNCIONES DE PROCESAMIENTO LLM ====================
