@@ -31,3 +31,4 @@ unidecode==1.3.7
 websockets==12.0
 asyncio==3.4.3
 av
+scipy==1.16.2
