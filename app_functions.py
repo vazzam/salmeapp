@@ -19,6 +19,10 @@ import tempfile
 from pathlib import Path
 import time
 import assemblyai as aai
+import av
+from scipy.signal import resample_poly
+import math
+
 import queue
 import logging
 from streamlit_webrtc import (
